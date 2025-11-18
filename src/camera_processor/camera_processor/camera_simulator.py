@@ -7,7 +7,15 @@ import os
 import cv2
 from camera_processor.processor import process_frame
 
+"""
+ROS2 Node that simulates a camera using a video file.
 
+Attributes:
+    publisher_ (rclpy.Publisher): Publisher for /camera/image_raw
+    cap (cv2.VideoCapture): OpenCV video capture object
+    bridge (CvBridge): Converter from OpenCV images to ROS2 Image messages
+    timer (rclpy.Timer): Timer to periodically publish frames
+"""
 class CameraSimulator(Node):
     def __init__(self, video_path):
         super().__init__('camera_simulator')  # ROS node name
@@ -32,14 +40,14 @@ class CameraSimulator(Node):
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             return
         
-         # ---- PROCESSAMENTO ----
+         # process the current frame in computer vision script
         processed = process_frame(frame)
 
-        # Mostrar frame processado
+        # show process frame
         cv2.imshow("Frame Processado", processed)
         cv2.waitKey(1)
 
-        # ---- PUBLICAÇÃO (opcional) ----
+        # publish message
         msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
         self.publisher_.publish(msg)
 

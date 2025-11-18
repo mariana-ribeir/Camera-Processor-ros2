@@ -1,1 +1,91 @@
-ROS2 package for camera processing in human-robot shared environments. Initially detects colors and objects; future version will include human detection and robot safety control.
+# Camera Processor ROS2 Package
+
+This ROS2 package simulates a camera using a video file and publishes frames as ROS2 image messages (`sensor_msgs/Image`).  
+It also includes a placeholder for vision processing (`processor.py`).
+
+## Features
+
+- Simulates a camera from a video file (`walk_people.mp4` or any `.mp4` video)
+- Publishes frames to the `/camera/image_raw` topic
+- Ready for adding custom image processing
+
+## Docker Workflow
+
+This project uses Docker to ensure a consistent ROS2 environment across machines.
+
+Pull the ROS 2 Humble Desktop image: 
+
+```bash
+docker pull ros:humble-desktop
+```
+
+Run a container mapping a Windows folder
+
+
+```bash
+docker run -it -v C:\path\to\windows\folder:/ros2_ws ros:humble-desktop
+```
+
+Inside the container, your Windows files are accessible at /ros2_ws. You can now run ROS 2 commands or launch nodes directly.
+
+To stop the running container:
+
+```bash
+docker stop ros2_container
+```
+
+To restart it later:
+
+```bash
+docker start -ai ros2_container
+```
+-a ->  attacth to the container
+-i ->  keep the container interactive
+
+## Installation
+
+Make sure you made the Docker steps, or have ROS2 installed by another away (directly on WSL or Linux, Virtual Machines...)
+
+Clone the package into your ROS2 workspace:
+
+```bash
+cd ~/ros2_ws/src
+git clone https://github.com/mariana-ribeiro/camera-processor-ros2.git
+```
+
+Build the workspace:
+
+```bash
+cd ~/ros2_ws
+colcon build
+source install/setup.bash
+```
+
+## Usage
+
+Run the camera simulator:
+```bash
+ros2 run camera_processor camera_simulator
+```
+
+The node will publish frames from the video to `/camera/image_raw` topic, its possible check the topic: 
+
+```bash
+ros2 topic list
+ros2 topic info /camera/image_raw
+```
+
+To visualize the image view, or in this case the video view: 
+```bash
+ros2 run rqt_image_view rqt_image_view
+```
+
+## Current Stage: Early
+
+Current this project is in **Early Stage** its like the initial phase, undertstand the big problem by split in some little problems.
+
+
+- [x] Camera Node
+- [] Computer Vision Implementation
+
+By the end of the project should be possible, identify a human in the video near the robo that its present in the video too and tell the robo to stop moving to keep the human safe.
