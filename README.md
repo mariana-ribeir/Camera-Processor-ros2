@@ -28,6 +28,14 @@ docker run -it -v C:\path\to\windows\folder:/ros2_ws ros:humble-desktop
 
 Inside the container, your Windows files are accessible at /ros2_ws. You can now run ROS 2 commands or launch nodes directly.
 
+To test if the ROS2 is currently installed:
+
+```bash
+source /opt/ros/humble/setup.bash
+ros2 --help
+ros2 doctor
+```
+
 To stop the running container:
 
 ```bash

@@ -1,6 +1,9 @@
 from setuptools import find_packages, setup
+import glob
+import os
 
 package_name = 'camera_processor'
+data_files=glob.glob(os.path.join('data', '*')) #select all the files in data folder
 
 setup(
     name=package_name,
@@ -10,6 +13,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+         ('share/' + package_name + '/data', data_files), # to node recognize all the files in data folder
     ],
     install_requires=['setuptools', 'opencv-python', 'cv-bridge'],
     zip_safe=True,
