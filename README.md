@@ -125,18 +125,18 @@ Current this project is in **Early Stage** its like the initial phase, undertsta
 
 - ✔️ Camera Node
     -  ✔️ Publishes raw video frames on `/camera/image_raw` 
-- ✔️ Camera Processor Node
-    -  ✔️ Subscribes to `/camera/image_raw` 
-    -  ✔️ Publishes real frames
-    -  ✔️ Processes frames to detect red objects
-    -  ✔️ Publishes processed frames 
-    -  ✔️ Publishes boolean red detection on `/red_detected`
-
- - ⬜ Person Processor Node
-        - ⬜ Subscribes to `/camera/image_raw` 
-        - ⬜ Processes frames to detect persons 
-        - ⬜ Publishes boolean person detected `/person_detected`
-        - ⬜ Publishes count person `/count_person`
+- ⬜ Camera Processor 
+    - ✔️ Color Processor Node
+        -  ✔️ Subscribes to `/camera/image_raw` 
+        -  ✔️ Publishes real frames
+        -  ✔️ Processes frames to detect red objects
+        -  ✔️ Publishes processed frames 
+        -  ✔️ Publishes boolean red detection on `/red_detected`
+    - ⬜ Person Processor Node
+       - ⬜ Subscribes to `/camera/image_raw` 
+       - ⬜ Processes frames to detect persons 
+       - ⬜ Publishes boolean person detected `/person_detected`
+       - ⬜ Publishes count person `/count_person`
 
 ## Final Stage
 
