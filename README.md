@@ -88,12 +88,46 @@ To visualize the image view, or in this case the video view:
 ros2 run rqt_image_view rqt_image_view
 ```
 
+## Architecture Overview
+
+```
+    +--------------------+                    +-------------------------+
+    |                    |  /camera/image_raw |                         |
+    |   Camera Node      | ---------------->  |    Camera Processor     |
+    | (camera_simulator) |                    | Node (camera_processor) |
+    |                    |                    |                         | 
+    +--------------------+                    +-------------------------+
+                                                    |          |
+                                 /processed frames  |          | /red_detected
+                                                    v          v
+                                                 +---------------------+
+                                                 |   Topics Published  |
+                                                 |---------------------|
+                                                 | /camera/processed   |
+                                                 | /red_detected       |
+                                                 +---------------------+
+```
+
+
 ## Current Stage: Early
 
 Current this project is in **Early Stage** its like the initial phase, undertstand the big problem by split in some little problems.
 
 
-- [x] Camera Node
-- [] Computer Vision Implementation
+- ✔️ Camera Node
+    -  ✔️ Publishes raw video frames on `/camera/image_raw` 
+- ✔️ Camera Processor Node
+    -  ✔️ Subscribes to `/camera/image_raw` 
+    -  ✔️ Publishes real frames
+    -  ✔️ Processes frames to detect red objects
+    -  ✔️ Publishes processed frames 
+    -  ✔️ Publishes boolean red detection on `/red_detected`
+
+- ⬜ Node that identify persons
+    - ⬜ Subscribes to `/camera/image_raw` 
+    - ⬜ Processes frames to detect persons 
+    - ⬜ Publishes count person `/count_person`
+
+## Final Stage
 
 By the end of the project should be possible, identify a human in the video near the robo that its present in the video too and tell the robo to stop moving to keep the human safe.

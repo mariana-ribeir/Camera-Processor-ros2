@@ -30,12 +30,11 @@ def process_frame(frame):
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     # Define red color ranges
-    lower_red1 = np.array([0, 255, 255])
-    upper_red1 = np.array([1, 255, 255])
+    lower_red1 = np.array([0, 150, 100])
+    upper_red1 = np.array([5, 255, 255])
 
-    lower_red2 = np.array([179, 255, 255])
+    lower_red2 = np.array([175, 150, 70])
     upper_red2 = np.array([180, 255, 255])
-
 
 
     # Threshold for red

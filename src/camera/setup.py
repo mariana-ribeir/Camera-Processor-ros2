@@ -1,6 +1,10 @@
 from setuptools import find_packages, setup
+import glob
+import os
 
-package_name = 'camera_processor'
+
+package_name = 'camera'
+data_files=glob.glob(os.path.join('data', '*')) #select all the files in data folder
 
 setup(
     name=package_name,
@@ -10,8 +14,9 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/data', data_files), # to node recognize all the files in data folder
     ],
-    install_requires=['setuptools', 'opencv-python', 'cv-bridge'],
+    install_requires=['setuptools','rclpy','sensor_msgs',],
     zip_safe=True,
     maintainer='root',
     maintainer_email='marianadsr.2001@gmail.com',
@@ -24,7 +29,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'camera_processor = camera_processor.camera_processor:main',
+            'camera_simulator = camera.camera_simulator:main',
         ],
     },
 )
