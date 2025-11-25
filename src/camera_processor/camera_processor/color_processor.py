@@ -19,10 +19,10 @@ Attributes:
     bridge (CvBridge): Converter from OpenCV images to ROS2 Image messages
     timer (rclpy.Timer): Timer to periodically publish frames
 """
-class CameraProcessor(Node):
+class ColorProcessor(Node):
     def __init__(self):
-        super().__init__('camera_processor')  # ROS node name
-        self.get_logger().info("Node 'camera_processor' started!")
+        super().__init__('color_processor')  # ROS node name
+        self.get_logger().info("Node 'color_processor' started!")
         #subscribe the image topic 
         self.subscription = self.create_subscription(
             Image,
@@ -55,7 +55,7 @@ class CameraProcessor(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = CameraProcessor()
+    node = ColorProcessor()
     rclpy.spin(node)
     node.destroy_node()
     cv2.destroyAllWindows()

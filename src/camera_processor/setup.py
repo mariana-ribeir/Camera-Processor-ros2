@@ -24,7 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'camera_processor = camera_processor.camera_processor:main',
+            'color_processor = camera_processor.color_processor:main',
         ],
     },
 )
