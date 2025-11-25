@@ -91,22 +91,31 @@ ros2 run rqt_image_view rqt_image_view
 ## Architecture Overview
 
 ```
-    +--------------------+                    +-------------------------+
-    |                    |  /camera/image_raw |                         |
-    |   Camera Node      | ---------------->  |    Camera Processor     |
-    | (camera_simulator) |                    | Node (camera_processor) |
-    |                    |                    |                         | 
-    +--------------------+                    +-------------------------+
-                                                    |          |
-                                 /processed frames  |          | /red_detected
-                                                    v          v
-                                                 +---------------------+
-                                                 |   Topics Published  |
-                                                 |---------------------|
-                                                 | /camera/processed   |
-                                                 | /red_detected       |
-                                                 +---------------------+
+                        +--------------------+
+                        |   Camera Node      |
+                        | (camera_simulator) |
+                        +--------------------+
+                               | 
+              -----------------+-----------------
+              |                                   |
+  /camera/image_raw                        /camera/image_raw
+              |                                   |
+  +-------------------------+         +-------------------------+
+  |   Color Processor Node  |         |  Person Processor Node  |
+  |   (color_processor)     |         |   (person_processor)    |
+  +-------------------------+         +-------------------------+
+  | /camera/processed        |        | /person_detected        |
+  | /red_detected            |        | /count_person           |
+  +-------------------------+         +-------------------------+
+
 ```
+
+| Package                     | Node name          | Purpose                                                |
+| --------------------------- | ------------------ | ------------------------------------------------------ |
+| `camera`                    | `camera_publisher` | Publishes raw video frames                             |
+| `camera-processor`          | `color_processor`  | Processes frames to detect colors and publish results  |
+|                             | `person_processor` | Processes frames to detect persons and publish results |
+
 
 
 ## Current Stage: Early
@@ -123,10 +132,11 @@ Current this project is in **Early Stage** its like the initial phase, undertsta
     -  ✔️ Publishes processed frames 
     -  ✔️ Publishes boolean red detection on `/red_detected`
 
-- ⬜ Node that identify persons
-    - ⬜ Subscribes to `/camera/image_raw` 
-    - ⬜ Processes frames to detect persons 
-    - ⬜ Publishes count person `/count_person`
+ - ⬜ Person Processor Node
+        - ⬜ Subscribes to `/camera/image_raw` 
+        - ⬜ Processes frames to detect persons 
+        - ⬜ Publishes boolean person detected `/person_detected`
+        - ⬜ Publishes count person `/count_person`
 
 ## Final Stage
 
