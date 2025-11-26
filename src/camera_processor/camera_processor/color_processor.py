@@ -30,7 +30,7 @@ class ColorProcessor(Node):
             self.listener_callback,
             10)
         #create an boolean topic to see if red is present in frame or not 
-        self.red_pub = self.create_publisher(Bool, '/red_detected', 10)
+        self.red_pub = self.create_publisher(Bool, 'color/red_detected', 10)
         self.bridge = CvBridge()
 
     def listener_callback(self, msg):

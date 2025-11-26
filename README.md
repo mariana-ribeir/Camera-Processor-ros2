@@ -107,8 +107,9 @@ ros2 run rqt_image_view rqt_image_view
   |   Color Processor Node  |         |  Person Processor Node  |
   |   (color_processor)     |         |   (person_processor)    |
   +-------------------------+         +-------------------------+
-  | /camera/processed        |        | /person_detected        |
-  | /red_detected            |        | /count_person           |
+  | /color/frame_processed  |         |  person/detected        |
+  | /color/red_detected     |         |  person/count           |
+  |                         |         |  person/frame_processed |
   +-------------------------+         +-------------------------+
 
 ```
@@ -134,11 +135,11 @@ Current this project is in **Early Stage** its like the initial phase, undertsta
         -  ✔️ Publishes real frames
         -  ✔️ Processes frames to detect red objects
         -  ✔️ Publishes processed frames 
-        -  ✔️ Publishes boolean red detection on `/red_detected`
+        -  ✔️ Publishes boolean red detection on `color/red_detected`
     - ⬜ Person Processor Node
        - ✔️ Subscribes to `/camera/image_raw` 
-       - ⬜ Processes frames to detect persons 
-       - ⬜ Publishes boolean person detected `/person_detected`
+       - ✔️ Processes frames to detect persons 
+       - ✔️ Publishes boolean person detected `/person_detected`
        - ⬜ Publishes count person `/count_person`
 
 ## Final Stage

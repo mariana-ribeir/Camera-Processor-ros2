@@ -63,8 +63,12 @@ def person_process_frame(frame):
 
     model = YOLO(model_path)
 
-    results = model(frame)
+    results = model(frame, verbose=False)
 
     annotated_frame = results[0].plot()
 
-    return annotated_frame, results
+    people_count = len(results[0].boxes)  # number of bounding boxes
+
+    people_detected = people_count > 0
+
+    return annotated_frame, people_detected , people_count
