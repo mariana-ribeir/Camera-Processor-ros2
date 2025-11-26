@@ -1,5 +1,9 @@
+import os
 import cv2
 import numpy as np
+from ultralytics import YOLO
+
+from ament_index_python.packages import get_package_share_directory
 
 """
 Processes a single video frame in black and white.
@@ -25,7 +29,7 @@ Returns:
     red_highlighted (np.ndarray): Processed frame (only red regions visible)
     detected (boolean): True if any red pixels were detected
 """
-def process_frame(frame):
+def color_process_frame(frame):
     # Convert to HSV
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -50,3 +54,17 @@ def process_frame(frame):
     detected = np.any(mask > 0)
 
     return red_highlighted, detected
+
+def person_process_frame(frame):
+
+    pkg_share = get_package_share_directory('camera')
+    model_dir = os.path.join(pkg_share, 'model')
+    model_path=os.path.join(model_dir, 'yolov8n-pose.pt')
+
+    model = YOLO(model_path)
+
+    results = model(frame)
+
+    annotated_frame = results[0].plot()
+
+    return annotated_frame, results

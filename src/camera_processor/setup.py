@@ -1,6 +1,9 @@
 from setuptools import find_packages, setup
+import glob
+import os
 
 package_name = 'camera_processor'
+models_files=glob.glob(os.path.join('model', '*')) #select all the models in data folder
 
 setup(
     name=package_name,
@@ -25,6 +28,7 @@ setup(
     entry_points={
         'console_scripts': [
             'color_processor = camera_processor.color_processor:main',
+            'person_processor = camera_processor.person_processor:main',
         ],
     },
 )

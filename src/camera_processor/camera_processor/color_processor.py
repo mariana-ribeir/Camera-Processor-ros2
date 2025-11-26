@@ -8,7 +8,7 @@ from std_msgs.msg import Bool
 from cv_bridge import CvBridge
 from ament_index_python.packages import get_package_share_directory
 
-from camera_processor.processor import process_frame
+from camera_processor.processor import color_process_frame
 
 """
 ROS2 Node that simulates a camera using a video file.
@@ -41,7 +41,7 @@ class ColorProcessor(Node):
         cv2.imshow("Real Frame", frame)
 
         # process the current frame in computer vision script
-        processed, red_detected = process_frame(frame)
+        processed, red_detected = color_process_frame(frame)
 
         cv2.namedWindow("Processed Frame", cv2.WINDOW_NORMAL)
         cv2.resizeWindow("Processed Frame", 800, 600)

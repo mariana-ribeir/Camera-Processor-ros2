@@ -13,17 +13,20 @@ It also includes a placeholder for vision processing (`processor.py`).
 
 This project uses Docker to ensure a consistent ROS2 environment across machines.
 
+
+Inside the project root lets create the Docker image: 
+
 Pull the ROS 2 Humble Desktop image: 
 
 ```bash
-docker pull ros:humble-desktop
+docker build -t ros2-humble-yolo .
 ```
 
 Run a container mapping a Windows folder
 
 
 ```bash
-docker run -it -v C:\path\to\windows\folder:/ros2_ws ros:humble-desktop
+docker run -it --name ros2_yolo_container -v C:\path\to\windows\folder:/ros2_ws ros:ros2-humble-yolo 
 ```
 
 Inside the container, your Windows files are accessible at /ros2_ws. You can now run ROS 2 commands or launch nodes directly.
@@ -39,13 +42,13 @@ ros2 doctor
 To stop the running container:
 
 ```bash
-docker stop ros2_container
+docker stop ros2_yolo_container
 ```
 
 To restart it later:
 
 ```bash
-docker start -ai ros2_container
+docker start -ai ros2_yolo_container
 ```
 -a ->  attacth to the container
 -i ->  keep the container interactive
@@ -133,7 +136,7 @@ Current this project is in **Early Stage** its like the initial phase, undertsta
         -  ✔️ Publishes processed frames 
         -  ✔️ Publishes boolean red detection on `/red_detected`
     - ⬜ Person Processor Node
-       - ⬜ Subscribes to `/camera/image_raw` 
+       - ✔️ Subscribes to `/camera/image_raw` 
        - ⬜ Processes frames to detect persons 
        - ⬜ Publishes boolean person detected `/person_detected`
        - ⬜ Publishes count person `/count_person`
