@@ -1,6 +1,6 @@
 # Camera Processor ROS2 Package
 
-This ROS2 package simulates a camera using a video file and publishes frames as ROS2 image messages (`sensor_msgs/Image`).  
+This ROS2 package simulates a camera using a video file and publishes frames as ROS2 image messages.  
 It also includes a placeholder for vision processing (`processor.py`).
 
 ## Features
@@ -76,7 +76,7 @@ source install/setup.bash
 
 Run the camera simulator:
 ```bash
-ros2 run camera_processor camera_simulator
+ros2 run camera camera_simulator
 ```
 
 The node will publish frames from the video to `/camera/image_raw` topic, its possible check the topic: 
@@ -129,19 +129,20 @@ Current this project is in **Early Stage** its like the initial phase, undertsta
 
 - ✔️ Camera Node
     -  ✔️ Publishes raw video frames on `/camera/image_raw` 
-- ⬜ Camera Processor 
+- ✔️ Camera Processor 
     - ✔️ Color Processor Node
         -  ✔️ Subscribes to `/camera/image_raw` 
         -  ✔️ Publishes real frames
         -  ✔️ Processes frames to detect red objects
         -  ✔️ Publishes processed frames 
         -  ✔️ Publishes boolean red detection on `color/red_detected`
-    - ⬜ Person Processor Node
+    - ✔️ Person Processor Node
        - ✔️ Subscribes to `/camera/image_raw` 
        - ✔️ Processes frames to detect persons 
        - ✔️ Publishes boolean person detected `/person_detected`
-       - ⬜ Publishes count person `/count_person`
-
+       - ✔️ Publishes count person `/count_person`
+<!--
 ## Final Stage
 
 By the end of the project should be possible, identify a human in the video near the robo that its present in the video too and tell the robo to stop moving to keep the human safe.
+-->
