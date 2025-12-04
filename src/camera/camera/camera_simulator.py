@@ -24,8 +24,8 @@ class CameraSimulator(Node):
         self.bridge = CvBridge()
 
         # Open video (0 = webcam, ou "video.mp4")
-        self.cap = cv2.VideoCapture(0)
-        #self.cap = cv2.VideoCapture(video_path)
+        #self.cap = cv2.VideoCapture(0)
+        self.cap = cv2.VideoCapture(video_path)
 
         if not self.cap.isOpened():
             self.get_logger().error(f"Error open the video(simulation of camera): {video_path}")
@@ -51,7 +51,7 @@ def main(args=None):
     #Define the name of the folder of videos data
     pkg_share = get_package_share_directory('camera')
     data_dir = os.path.join(pkg_share, 'data')
-    video=os.path.join(data_dir, 'walk_people.mp4')
+    video=os.path.join(data_dir, 'Video Project.mp4')
 
     #Create the node
     node = CameraSimulator(video)
