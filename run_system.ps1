@@ -22,8 +22,8 @@ docker run -d --rm --name camera_ws -e DISPLAY=host.docker.internal:0 -e QT_X11_
 Start-Sleep -Seconds 5
 
 # Passo 3.5: Instalar torchreid no contentor
-Write-Host "Instalando torchreid, gdown e tensorboard para ReID..."
-docker exec camera_ws pip3 install torchreid gdown tensorboard
+Write-Host "Instalando torchreid, gdown, tensorboard, scipy e scikit-learn para ReID..."
+docker exec camera_ws pip3 install torchreid gdown tensorboard scipy scikit-learn
 
 # Passo 4: Lançar camera_simulator
 Write-Host "Lançando camera_simulator..."

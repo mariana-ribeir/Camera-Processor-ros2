@@ -5,6 +5,8 @@ import torch
 from ultralytics import YOLO
 from collections import deque
 from typing import Optional
+import scipy.optimize
+from sklearn.metrics.pairwise import cosine_similarity
 
 from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 
@@ -531,27 +533,37 @@ def assign_ids_greedy(det_features: list, det_boxes: list, person_db: PersonData
             used_ids.add(pid)
             counters['iou_assignments'] += 1
 
-    # 2) Emparelhamento por descritor (coseno) para os que restaram
-    sim_pairs = []  # (sim, det_i, pid)
-    for i, feat in enumerate(det_features):
-        if i in used_dets or feat is None:
-            continue
-        for pid in existing_ids:
-            if pid in used_ids:
+    # 2) Emparelhamento por descritor (coseno) para os que restaram usando atribuição ótima
+    unmatched_dets = [i for i in range(len(det_features)) if i not in used_dets and det_features[i] is not None]
+    available_ids = [pid for pid in existing_ids if pid not in used_ids]
+    if unmatched_dets and available_ids:
+        # Criar matriz de custo
+        cost_matrix = np.full((len(unmatched_dets), len(available_ids)), np.inf)
+        det_to_idx = {det: idx for idx, det in enumerate(unmatched_dets)}
+        id_to_idx = {pid: idx for idx, pid in enumerate(available_ids)}
+        for i, feat in enumerate(det_features):
+            if i not in unmatched_dets or feat is None:
                 continue
-            stored_feat = person_db[pid]['feat']
-            if stored_feat is not None:
-                sim = _cosine_similarity(feat, stored_feat)
+            for pid in available_ids:
+                ref = person_db[pid]['feat']
+                sim = float(cosine_similarity(feat.reshape(1, -1), ref.reshape(1, -1))[0][0])
                 if sim >= similarity_threshold:
-                    sim_pairs.append((sim, i, pid))
-    sim_pairs.sort(key=lambda x: x[0], reverse=True)
-    for sim, det_i, pid in sim_pairs:
-        if det_i in used_dets or pid in used_ids:
-            continue
-        assigned[det_i] = pid
-        used_dets.add(det_i)
-        used_ids.add(pid)
-        counters['sim_assignments'] += 1
+                    cost_matrix[det_to_idx[i], id_to_idx[pid]] = -sim  # negativo para minimização
+        # Resolver atribuição ótima
+        if np.any(np.isfinite(cost_matrix)):
+            try:
+                row_ind, col_ind = scipy.optimize.linear_sum_assignment(cost_matrix)
+                for r, c in zip(row_ind, col_ind):
+                    if cost_matrix[r, c] != np.inf:
+                        det_i = unmatched_dets[r]
+                        pid = available_ids[c]
+                        assigned[det_i] = pid
+                        used_dets.add(det_i)
+                        used_ids.add(pid)
+                        counters['sim_assignments'] += 1
+            except ValueError:
+                # Se a matriz for infactível (ex. filas sem matches), saltar atribuição
+                pass
 
     # 2.5) Etapa de reaparência: emparelhar com IDs velhos usando similaridade alta
     reappear_pairs = []
@@ -563,7 +575,7 @@ def assign_ids_greedy(det_features: list, det_boxes: list, person_db: PersonData
                 continue
             stored_feat = person_db[pid]['feat']
             if stored_feat is not None:
-                sim = _cosine_similarity(feat, stored_feat)
+                sim = float(cosine_similarity(feat.reshape(1, -1), stored_feat.reshape(1, -1))[0][0])
                 if sim >= reappear_threshold:
                     reappear_pairs.append((sim, i, pid))
     reappear_pairs.sort(key=lambda x: x[0], reverse=True)

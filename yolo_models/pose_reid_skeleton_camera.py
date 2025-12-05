@@ -1,15 +1,15 @@
 """
-Pose Re-ID Skeleton-based Camera Processor
+Processador de Câmara baseado em Pose Re-ID Skeleton
 
-Este script procesa video en tiempo real desde la cámara del dispositivo para detectar poses humanas,
-asignar IDs únicos a personas usando ReID (embeddings visuales) o descriptores de esqueleto como fallback,
-y opcionalmente IoU para seguimiento a corto plazo.
+Este script processa vídeo em tempo real a partir da câmara do dispositivo para detetar poses humanas,
+atribuir IDs únicos a pessoas usando ReID (embeddings visuais) ou descritores de esqueleto como fallback,
+e opcionalmente IoU para seguimento de curto prazo.
 
-Flujo principal:
-1. Detección de poses con YOLOv8.
-2. Extracción de features (ReID o esqueleto).
-3. Asignación de IDs: IoU -> Similitud -> Reaparición.
-4. Mostrar video anotado en tiempo real.
+Fluxo principal:
+1. Deteção de poses com YOLOv8.
+2. Extração de características (ReID ou esqueleto).
+3. Atribuição de IDs: IoU -> Similaridade -> Reaparição.
+4. Mostrar vídeo anotado em tempo real.
 
 Uso: python pose_reid_skeleton_camera.py --use-reid
 """
@@ -24,23 +24,24 @@ from ultralytics import YOLO
 from sklearn.metrics.pairwise import cosine_similarity
 from collections import deque
 from typing import Optional
+import scipy.optimize
 
-# Configuración para evitar conflictos con MKL/OpenMP
+# Configuração para evitar conflitos com MKL/OpenMP
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
-# Constantes por defecto para umbrales y configuraciones
+# Constantes por omissão para limiares e configurações
 DEFAULT_SIM_THRESHOLD = 0.75
 DEFAULT_IOU_THRESHOLD = 0.95
 DEFAULT_MAX_AGE = 1
 DEFAULT_FEATURE_HISTORY = 10
 DEFAULT_CONF = 0.40
-DEFAULT_SCALE = 1.0  # Cambiado a 1.0 para ventana más grande en cámara
+DEFAULT_SCALE = 1.0  # Alterado para 1.0 para janela maior na câmara
 DEFAULT_REID_THRESHOLD = 0.8
 DEFAULT_REAPPEAR_THRESHOLD = 0.6
 
 class PersonDatabase:
     """
-    Clase para manejar la base de datos de personas en el sistema de Re-ID.
+    Classe para gerir a base de dados de pessoas no sistema de Re-ID.
     """
     def __init__(self):
         self.db = {}
@@ -48,16 +49,16 @@ class PersonDatabase:
 
     def add_person(self, features, bbox, frame_index, feature_history):
         """
-        Agrega una nueva persona a la base de datos.
+        Adiciona uma nova pessoa à base de dados.
 
         Args:
-            features: Vector de características.
-            bbox: Caja delimitadora (x1,y1,x2,y2).
-            frame_index: Índice del frame actual.
-            feature_history: Longitud del historial de features.
+            features: Vetor de características.
+            bbox: Caixa delimitadora (x1,y1,x2,y2).
+            frame_index: Índice do frame atual.
+            feature_history: Comprimento do histórico de características.
 
         Returns:
-            int: ID asignado a la nueva persona.
+            int: ID atribuído à nova pessoa.
         """
         pid = self.next_id
         self.next_id += 1
@@ -73,13 +74,13 @@ class PersonDatabase:
 
     def update_person(self, pid, features, bbox, frame_index):
         """
-        Actualiza la información de una persona existente.
+        Atualiza a informação de uma pessoa existente.
 
         Args:
-            pid: ID de la persona.
-            features: Nuevas características.
-            bbox: Nueva caja delimitadora.
-            frame_index: Índice del frame actual.
+            pid: ID da pessoa.
+            features: Novas características.
+            bbox: Nova caixa delimitadora.
+            frame_index: Índice do frame atual.
         """
         if pid not in self.db:
             return
@@ -94,11 +95,11 @@ class PersonDatabase:
 
     def get_recent_ids(self, frame_index, max_age):
         """
-        Obtiene IDs de personas vistas recientemente.
+        Obtém IDs de pessoas vistas recentemente.
 
         Args:
-            frame_index: Índice del frame actual.
-            max_age: Máximo frames sin ver.
+            frame_index: Índice do frame atual.
+            max_age: Máximo de frames sem ver.
 
         Returns:
             list: Lista de IDs recientes con bbox válido.
@@ -107,7 +108,7 @@ class PersonDatabase:
 
     def increment_misses(self, frame_index):
         """
-        Incrementa el contador de misses para personas no vistas.
+        Incrementa o contador de misses para pessoas não vistas.
 
         Args:
             frame_index: Índice del frame actual.
@@ -117,7 +118,7 @@ class PersonDatabase:
                 self.db[pid]['misses'] = self.db[pid].get('misses', 0) + 1
 
     def clear(self):
-        """Limpia la base de datos."""
+        """Limpa a base de dados."""
         self.db.clear()
         self.next_id = 1
 
@@ -136,42 +137,42 @@ class PersonDatabase:
 
 def parse_args():
     """
-    Parsea los argumentos de línea de comandos.
+    Analisa os argumentos da linha de comandos.
 
     Returns:
-        argparse.Namespace: Argumentos parseados.
+        argparse.Namespace: Argumentos analisados.
     """
-    parser = argparse.ArgumentParser(description='Pose Re-ID skeleton basado en cámara')
-    parser.add_argument('--model', type=str, default=r'C:\Users\Carlo\Desktop\Camera-Processor-ros2\src\camera_processor\models\yolov8n-pose.pt', help='Modelo YOLOv8 pose (.pt)')
+    parser = argparse.ArgumentParser(description='Pose Re-ID skeleton baseado em câmara')
+    parser.add_argument('--model', type=str, default='yolov8n-pose.pt', help='Modelo YOLOv8 pose (.pt)')
     parser.add_argument('--device', type=str, default=None, help='Dispositivo torch: cuda, cuda:0, cpu')
-    parser.add_argument('--sim-threshold', type=float, default=DEFAULT_SIM_THRESHOLD, help='Umbral de similitud (0-1)')
-    parser.add_argument('--iou-threshold', type=float, default=DEFAULT_IOU_THRESHOLD, help='Umbral IoU para emparejar con historial reciente')
-    parser.add_argument('--max-age', type=int, default=DEFAULT_MAX_AGE, help='Cuadros max sin ver una persona para usar IoU (memoria corta)')
-    parser.add_argument('--feature-history', type=int, default=DEFAULT_FEATURE_HISTORY, help='Longitud del historial para promediar el descriptor por persona')
-    parser.add_argument('--conf', type=float, default=DEFAULT_CONF, help='Confianza minima deteccion YOLO')
-    parser.add_argument('--scale', type=float, default=DEFAULT_SCALE, help='Factor de escala para reducir tamaño (por defecto 0.5 = mitad)')
-    # Opciones ReID por imagen (OSNet via torchreid)
-    parser.add_argument('--use-reid', action='store_true', help='Usar un modelo ReID (OSNet) para embeddings por persona (mejor precisión).')
-    parser.add_argument('--reid-model', type=str, default='osnet_x0_25', help='Nombre del modelo ReID en torchreid (ej: osnet_x0_25, osnet_x0_5, osnet_x1_0).')
-    parser.add_argument('--reid-size', type=int, default=256, help='Tamaño de resize cuadrado para el crop de persona (ej: 256).')
-    parser.add_argument('--reid-threshold', type=float, default=DEFAULT_REID_THRESHOLD, help='Umbral de similitud coseno para embeddings ReID (0-1).')
-    parser.add_argument('--reappear-threshold', type=float, default=DEFAULT_REAPPEAR_THRESHOLD, help='Umbral de similitud para reapariciones de IDs viejos (0-1).')
-    parser.add_argument('--no-iou', action='store_true', help='Desactivar asignación por IoU')
+    parser.add_argument('--sim-threshold', type=float, default=DEFAULT_SIM_THRESHOLD, help='Limite de similaridade (0-1)')
+    parser.add_argument('--iou-threshold', type=float, default=DEFAULT_IOU_THRESHOLD, help='Limite IoU para emparelhar com histórico recente')
+    parser.add_argument('--max-age', type=int, default=DEFAULT_MAX_AGE, help='Máx. frames sem ver uma pessoa para usar IoU (memória curta)')
+    parser.add_argument('--feature-history', type=int, default=DEFAULT_FEATURE_HISTORY, help='Comprimento do histórico para média do descritor por pessoa')
+    parser.add_argument('--conf', type=float, default=DEFAULT_CONF, help='Confiança mínima deteção YOLO')
+    parser.add_argument('--scale', type=float, default=DEFAULT_SCALE, help='Fator de escala para reduzir tamanho (por omissão 0.5 = metade)')
+    # Opções ReID por imagem (OSNet via torchreid)
+    parser.add_argument('--use-reid', action='store_true', help='Usar um modelo ReID (OSNet) para embeddings por pessoa (melhor precisão).')
+    parser.add_argument('--reid-model', type=str, default='osnet_x0_25', help='Nome do modelo ReID em torchreid (ex: osnet_x0_25, osnet_x0_5, osnet_x1_0).')
+    parser.add_argument('--reid-size', type=int, default=256, help='Tamanho de resize quadrado para o crop de pessoa (ex: 256).')
+    parser.add_argument('--reid-threshold', type=float, default=DEFAULT_REID_THRESHOLD, help='Limite de similaridade coseno para embeddings ReID (0-1).')
+    parser.add_argument('--reappear-threshold', type=float, default=DEFAULT_REAPPEAR_THRESHOLD, help='Limite de similaridade para reaparições de IDs antigos (0-1).')
+    parser.add_argument('--no-iou', action='store_true', help='Desativar atribuição por IoU')
     return parser.parse_args()
 
 
 def extract_skeleton_features(keypoints: np.ndarray):
     """
-    Extrae un descriptor de características basado en keypoints del esqueleto.
+    Extrai um descritor de características baseado nos keypoints do esqueleto.
 
-    Normaliza por escala y orientación para robustez. Incluye longitudes de huesos,
-    ángulos articulares y otras métricas.
+    Normaliza por escala e orientação para robustez. Inclui comprimentos de ossos,
+    ângulos articulares e outras métricas.
 
     Args:
-        keypoints (np.ndarray): Array de keypoints (17, 3) con x, y, conf.
+        keypoints (np.ndarray): Array de keypoints (17, 3) com x, y, conf.
 
     Returns:
-        np.ndarray or None: Vector de características normalizado, o None si falla.
+        np.ndarray or None: Vetor de características normalizado, ou None se falhar.
     """
     conf_thr = 0.5
     if keypoints is None or keypoints.shape[0] < 17:
@@ -180,7 +181,7 @@ def extract_skeleton_features(keypoints: np.ndarray):
     pts = keypoints[:, :2].astype(np.float32)
     vis = keypoints[:, 2] > conf_thr
 
-    # Selecciona raíz (pelvis) y escala (ancho hombros/ caderas / torso)
+    # Seleciona raiz (pelve) e escala (largura ombros/ ancas / torso)
     def have(i):
         return bool(vis[i])
 
@@ -190,7 +191,7 @@ def extract_skeleton_features(keypoints: np.ndarray):
             return float(np.hypot(v[0], v[1]))
         return None
 
-    # Raíz: centro de caderas si disponible, si no centro de hombros, si no nariz
+    # Raiz: centro das ancas se disponível, senão centro dos ombros, senão nariz
     root = None
     if have(11) and have(12):
         root = (pts[11] + pts[12]) / 2.0
@@ -201,7 +202,7 @@ def extract_skeleton_features(keypoints: np.ndarray):
     else:
         return None
 
-    # Escala preferente: ancho de hombros, luego caderas, luego altura torso
+    # Escala preferencial: largura dos ombros, depois ancas, depois altura do torso
     scale_candidates = []
     d_sh = dist(5, 6)
     d_hip = dist(11, 12)
@@ -224,7 +225,7 @@ def extract_skeleton_features(keypoints: np.ndarray):
     if scale <= 1e-3:
         return None
 
-    # Coordenadas normalizadas centradas en raíz
+    # Coordenadas normalizadas centradas na raiz
     norm = np.zeros((17, 2), dtype=np.float32)
     for i in range(17):
         if vis[i]:
@@ -232,7 +233,7 @@ def extract_skeleton_features(keypoints: np.ndarray):
         else:
             norm[i] = 0.0
 
-    # Longitudes óseas normalizadas
+    # Comprimentos ósseos normalizados
     bones = [
         (5, 7), (7, 9),   # brazo izq
         (6, 8), (8, 10),  # brazo der
@@ -246,9 +247,9 @@ def extract_skeleton_features(keypoints: np.ndarray):
         d = dist(a, b)
         bone_lengths.append((d / scale) if d else 0.0)
 
-    # Ángulos en articulaciones principales (codo, rodilla, hombro, cadera)
+    # Ângulos nas articulações principais (cotovelo, joelho, ombro, anca)
     def angle_at(a, b, c):
-        # ángulo en b formado por a-b-c (usa coords normalizadas)
+        # ângulo em b formado por a-b-c (usa coords normalizadas)
         va = norm[a] - norm[b]
         vc = norm[c] - norm[b]
         na = np.linalg.norm(va)
@@ -257,7 +258,7 @@ def extract_skeleton_features(keypoints: np.ndarray):
             return 0.0, 1.0  # cos=1, sin=0 (neutral)
         va /= na; vc /= nc
         cos_t = float(np.clip(np.dot(va, vc), -1.0, 1.0))
-        # Para continuidad añade sin con signo usando producto cruzado 2D
+        # Para continuidade adiciona sin com sinal usando produto cruzado 2D
         sin_t = float(np.clip(va[0] * vc[1] - va[1] * vc[0], -1.0, 1.0))
         return cos_t, sin_t
 
@@ -272,7 +273,7 @@ def extract_skeleton_features(keypoints: np.ndarray):
         cos_t, sin_t = angle_at(a, b, c)
         angle_feats += [cos_t, sin_t]
 
-    # Orientación del tronco (vector hombros) en cos/sin
+    # Orientação do tronco (vetor ombros) em cos/sin
     orient_cos, orient_sin = 1.0, 0.0
     if have(5) and have(6):
         v = norm[6] - norm[5]
@@ -280,11 +281,11 @@ def extract_skeleton_features(keypoints: np.ndarray):
         orient_cos = float(np.cos(ang))
         orient_sin = float(np.sin(ang))
 
-    # Visibilidad: proporción de puntos visibles
+    # Visibilidade: proporção de pontos visíveis
     vis_ratio = float(np.mean(vis.astype(np.float32)))
 
     feat = np.array(bone_lengths + angle_feats + [orient_cos, orient_sin, vis_ratio], dtype=np.float32)
-    # Normaliza vector final para estabilizar la similitud coseno
+    # Normaliza vetor final para estabilizar a similaridade coseno
     n = np.linalg.norm(feat)
     if n > 1e-6:
         feat = feat / n
@@ -292,7 +293,7 @@ def extract_skeleton_features(keypoints: np.ndarray):
 
 
 def find_or_create_person_id(skeleton_features: np.ndarray, db: dict, next_id_ref: dict, similarity_threshold: float):
-    # Ya no se usa en el flujo principal; se mantiene por compatibilidad si alguien lo llama.
+    # Já não se usa no fluxo principal; mantém-se por compatibilidade se alguém o chamar.
     if skeleton_features is None:
         return None
     if not db:
@@ -310,13 +311,13 @@ def find_or_create_person_id(skeleton_features: np.ndarray, db: dict, next_id_re
 
 def iou_xyxy(a, b):
     """
-    Calcula el Intersection over Union (IoU) entre dos cajas delimitadoras.
+    Calcula a Intersecção sobre União (IoU) entre duas caixas delimitadoras.
 
     Args:
-        a, b: Tuplas (x1, y1, x2, y2) de las cajas.
+        a, b: Tuplas (x1, y1, x2, y2) das caixas.
 
     Returns:
-        float: Valor IoU entre 0 y 1.
+        float: Valor IoU entre 0 e 1.
     """
     xa1, ya1, xa2, ya2 = a
     xb1, yb1, xb2, yb2 = b
@@ -341,26 +342,26 @@ def assign_ids_greedy(det_features: list, det_boxes: list, person_db: PersonData
                       similarity_threshold: float, iou_threshold: float, frame_index: int,
                       max_age: int, feature_history: int, reappear_threshold: float = 0.6, counters: dict = None, use_iou: bool = True):
     """
-    Asigna IDs a detecciones usando un algoritmo greedy con etapas:
-    1. IoU (opcional): Matching por proximidad espacial.
-    2. Similitud: Matching por embeddings (ReID o esqueleto).
-    3. Reaparición: Reasignación de IDs viejos con umbral bajo.
+    Atribui IDs a deteções usando um algoritmo greedy com etapas:
+    1. IoU (opcional): Emparelhamento por proximidade espacial.
+    2. Similaridade: Emparelhamento por embeddings (ReID ou esqueleto).
+    3. Reaparição: Reatribuição de IDs antigos com limite baixo.
 
     Args:
-        det_features: Lista de vectores de características por detección.
-        det_boxes: Lista de cajas (x1,y1,x2,y2) por detección.
-        person_db: Instancia de PersonDatabase.
-        similarity_threshold: Umbral para matching por similitud.
-        iou_threshold: Umbral para IoU.
-        frame_index: Índice del frame actual.
+        det_features: Lista de vetores de características por deteção.
+        det_boxes: Lista de caixas (x1,y1,x2,y2) por deteção.
+        person_db: Instância de PersonDatabase.
+        similarity_threshold: Limite para emparelhamento por similaridade.
+        iou_threshold: Limite para IoU.
+        frame_index: Índice do frame atual.
         max_age: Máx frames para considerar IoU.
-        feature_history: Longitud del historial de features.
-        reappear_threshold: Umbral para reapariciones.
-        counters: Diccionario para contar asignaciones.
-        use_iou: Si usar IoU o no.
+        feature_history: Comprimento do histórico de características.
+        reappear_threshold: Limite para reaparições.
+        counters: Dicionário para contar atribuições.
+        use_iou: Se usar IoU ou não.
 
     Returns:
-        list: Lista de IDs asignados por detección.
+        list: Lista de IDs atribuídos por deteção.
     """
     if counters is None:
         counters = {}
@@ -374,7 +375,7 @@ def assign_ids_greedy(det_features: list, det_boxes: list, person_db: PersonData
     used_ids = set()
 
     if use_iou:
-        # 1) Intento por IoU con historiales recientes
+        # 1) Tentativa por IoU com históricos recentes
         recent_ids = person_db.get_recent_ids(frame_index, max_age)
         iou_pairs = []  # (sim, det_i, pid)
         for i, box in enumerate(det_boxes):
@@ -393,28 +394,39 @@ def assign_ids_greedy(det_features: list, det_boxes: list, person_db: PersonData
             used_ids.add(pid)
             counters['iou_assignments'] += 1
 
-    # 2) Emparejamiento por descriptor (coseno) para los que quedaron
-    sim_pairs = []  # (sim, det_i, pid)
-    for i, feat in enumerate(det_features):
-        if i in used_dets or feat is None:
-            continue
-        for pid in existing_ids:
-            if pid in used_ids:
+    # 2) Emparejamiento por descriptor (coseno) para los que quedaron usando asignación óptima
+    unmatched_dets = [i for i in range(len(det_features)) if i not in used_dets and det_features[i] is not None]
+    available_ids = [pid for pid in existing_ids if pid not in used_ids]
+    if unmatched_dets and available_ids:
+        # Criar matriz de custo
+        cost_matrix = np.full((len(unmatched_dets), len(available_ids)), np.inf)
+        det_to_idx = {det: idx for idx, det in enumerate(unmatched_dets)}
+        id_to_idx = {pid: idx for idx, pid in enumerate(available_ids)}
+        for i, feat in enumerate(det_features):
+            if i not in unmatched_dets or feat is None:
                 continue
-            ref = person_db[pid]['feat']
-            sim = float(cosine_similarity(feat.reshape(1, -1), ref.reshape(1, -1))[0][0])
-            if sim >= similarity_threshold:
-                sim_pairs.append((sim, i, pid))
-    sim_pairs.sort(key=lambda x: x[0], reverse=True)
-    for sim, det_i, pid in sim_pairs:
-        if det_i in used_dets or pid in used_ids:
-            continue
-        assigned[det_i] = pid
-        used_dets.add(det_i)
-        used_ids.add(pid)
-        counters['sim_assignments'] += 1
+            for pid in available_ids:
+                ref = person_db[pid]['feat']
+                sim = float(cosine_similarity(feat.reshape(1, -1), ref.reshape(1, -1))[0][0])
+                if sim >= similarity_threshold:
+                    cost_matrix[det_to_idx[i], id_to_idx[pid]] = -sim  # negativo para minimización
+        # Resolver atribuição ótima
+        if np.any(np.isfinite(cost_matrix)):
+            try:
+                row_ind, col_ind = scipy.optimize.linear_sum_assignment(cost_matrix)
+                for r, c in zip(row_ind, col_ind):
+                    if cost_matrix[r, c] != np.inf:
+                        det_i = unmatched_dets[r]
+                        pid = available_ids[c]
+                        assigned[det_i] = pid
+                        used_dets.add(det_i)
+                        used_ids.add(pid)
+                        counters['sim_assignments'] += 1
+            except ValueError:
+                # Se a matriz for infactível (ex. linhas sem matches), saltar atribuição
+                pass
 
-    # 2.5) Etapa de reaparición: emparejar con IDs viejos usando similitud alta
+    # 2.5) Etapa de reaparição: emparelhar com IDs antigos usando similaridade alta
     reappear_pairs = []
     for i, feat in enumerate(det_features):
         if assigned[i] is not None or feat is None:
@@ -434,7 +446,7 @@ def assign_ids_greedy(det_features: list, det_boxes: list, person_db: PersonData
         used_ids.add(pid)
         counters['reappear_assignments'] += 1
 
-    # 3) Actualiza tracks emparejados
+    # 3) Atualiza tracks emparelhados
     for i, pid in enumerate(assigned):
         if pid is None:
             continue
@@ -442,13 +454,13 @@ def assign_ids_greedy(det_features: list, det_boxes: list, person_db: PersonData
         box = det_boxes[i]
         person_db.update_person(pid, feat, box, frame_index)
 
-    # 4) Crea nuevos IDs para detecciones no emparejadas con descriptor válido
+    # 4) Cria novos IDs para deteções não emparelhadas com descritor válido
     for i, feat in enumerate(det_features):
         if assigned[i] is None and feat is not None:
             pid = person_db.add_person(feat, det_boxes[i], frame_index, feature_history)
             assigned[i] = pid
 
-    # 5) Incrementa misses para no emparejados (opcional limpieza futura)
+    # 5) Incrementa misses para não emparelhados (opcional limpeza futura)
     person_db.increment_misses(frame_index)
 
     return assigned
@@ -502,10 +514,10 @@ def compute_reid_embedding(img_bgr: np.ndarray, reid_model, device: str, size: i
 
 def initialize_models(args):
     """
-    Inicializa los modelos YOLO y ReID.
+    Inicializa os modelos YOLO e ReID.
 
     Args:
-        args: Argumentos parseados.
+        args: Argumentos analisados.
 
     Returns:
         tuple: (model, reid_model, device)
@@ -532,10 +544,10 @@ def initialize_models(args):
 
 def setup_camera(args):
     """
-    Configura la captura de video desde la cámara.
+    Configura a captura de vídeo a partir da câmara.
 
     Args:
-        args: Argumentos parseados.
+        args: Argumentos analisados.
 
     Returns:
         tuple: (cap, out_width, out_height)
@@ -559,17 +571,17 @@ def setup_camera(args):
 
 def process_frame(frame, model, reid_model, args, person_db: PersonDatabase, frame_index, counters, out_width, out_height):
     """
-    Procesa un frame individual: detección, extracción de features, asignación de IDs, anotación.
+    Processa um frame individual: deteção, extração de características, atribuição de IDs, anotação.
 
     Args:
-        frame: Frame de video.
+        frame: Frame de vídeo.
         model: Modelo YOLO.
         reid_model: Modelo ReID (opcional).
-        args: Argumentos parseados.
-        person_database: Base de datos de personas.
-        frame_index: Índice del frame actual.
-        counters: Diccionario de contadores.
-        out_width, out_height: Dimensiones de salida.
+        args: Argumentos analisados.
+        person_database: Base de dados de pessoas.
+        frame_index: Índice do frame atual.
+        counters: Dicionário de contadores.
+        out_width, out_height: Dimensões de saída.
 
     Returns:
         np.ndarray: Frame anotado.
@@ -648,12 +660,12 @@ def process_frame(frame, model, reid_model, args, person_db: PersonDatabase, fra
 
 def display_statistics(person_db: PersonDatabase, counters, fps):
     """
-    Muestra estadísticas finales del procesamiento.
+    Mostra estatísticas finais do processamento.
 
     Args:
-        person_database: Base de datos de personas.
-        counters: Diccionario de contadores.
-        fps: FPS promedio.
+        person_database: Base de dados de pessoas.
+        counters: Dicionário de contadores.
+        fps: FPS médio.
     """
     print('\n=== ESTADISTICAS FINALES ===')
     print(f'FPS promedio: {fps:.2f}')
@@ -664,8 +676,8 @@ def display_statistics(person_db: PersonDatabase, counters, fps):
 
 def main():
     """
-    Función principal: Carga argumentos, inicializa modelos, procesa video en tiempo real desde la cámara,
-    asigna IDs, muestra video anotado y estadísticas finales.
+    Função principal: Carrega argumentos, inicializa modelos, processa vídeo em tempo real a partir da câmara,
+    atribui IDs, mostra vídeo anotado e estatísticas finais.
     """
     args = parse_args()
     if not os.path.exists(args.model):
@@ -715,7 +727,7 @@ def main():
 
             cv2.putText(annotated_frame, f'FPS: {fps:.2f}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             cv2.putText(annotated_frame, f'Personas unicas: {len(person_db)}', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-            cv2.putText(annotated_frame, f'Umbral similitud {tipo_umbral}: {umbral_activo:.2f}', (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            cv2.putText(annotated_frame, f'Umbral similitud {tipo_umbral}: {umbral_activo:.2f}', (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
             cv2.putText(annotated_frame, f'Frame: {frame_index}', (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 2)
 
             cv2.imshow('Skeleton-based Re-ID (Camera)', annotated_frame)
