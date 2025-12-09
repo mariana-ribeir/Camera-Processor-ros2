@@ -1,6 +1,6 @@
 # Camera Processor ROS2 Package
 
-This ROS2 package simulates a camera using a video file and publishes frames as ROS2 image messages (`sensor_msgs/Image`).  
+This ROS2 package simulates a camera using a video file and publishes frames as ROS2 image messages.  
 It also includes a placeholder for vision processing (`processor.py`).
 
 ## Features
@@ -13,17 +13,20 @@ It also includes a placeholder for vision processing (`processor.py`).
 
 This project uses Docker to ensure a consistent ROS2 environment across machines.
 
+
+Inside the project root lets create the Docker image: 
+
 Pull the ROS 2 Humble Desktop image: 
 
 ```bash
-docker pull ros:humble-desktop
+docker build -t ros2-humble-yolo .
 ```
 
 Run a container mapping a Windows folder
 
 
 ```bash
-docker run -it -v C:\path\to\windows\folder:/ros2_ws ros:humble-desktop
+docker run -it --name ros2_yolo_container -v C:\path\to\windows\folder:/ros2_ws ros:ros2-humble-yolo 
 ```
 
 Inside the container, your Windows files are accessible at /ros2_ws. You can now run ROS 2 commands or launch nodes directly.
@@ -39,13 +42,13 @@ ros2 doctor
 To stop the running container:
 
 ```bash
-docker stop ros2_container
+docker stop ros2_yolo_container
 ```
 
 To restart it later:
 
 ```bash
-docker start -ai ros2_container
+docker start -ai ros2_yolo_container
 ```
 -a ->  attacth to the container
 -i ->  keep the container interactive
@@ -73,7 +76,7 @@ source install/setup.bash
 
 Run the camera simulator:
 ```bash
-ros2 run camera_processor camera_simulator
+ros2 run camera camera_simulator
 ```
 
 The node will publish frames from the video to `/camera/image_raw` topic, its possible check the topic: 
@@ -104,8 +107,9 @@ ros2 run rqt_image_view rqt_image_view
   |   Color Processor Node  |         |  Person Processor Node  |
   |   (color_processor)     |         |   (person_processor)    |
   +-------------------------+         +-------------------------+
-  | /camera/processed        |        | /person_detected        |
-  | /red_detected            |        | /count_person           |
+  | /color/frame_processed  |         |  person/detected        |
+  | /color/red_detected     |         |  person/count           |
+  |                         |         |  person/frame_processed |
   +-------------------------+         +-------------------------+
 
 ```
@@ -125,19 +129,20 @@ Current this project is in **Early Stage** its like the initial phase, undertsta
 
 - ✔️ Camera Node
     -  ✔️ Publishes raw video frames on `/camera/image_raw` 
-- ⬜ Camera Processor 
+- ✔️ Camera Processor 
     - ✔️ Color Processor Node
         -  ✔️ Subscribes to `/camera/image_raw` 
         -  ✔️ Publishes real frames
         -  ✔️ Processes frames to detect red objects
         -  ✔️ Publishes processed frames 
-        -  ✔️ Publishes boolean red detection on `/red_detected`
-    - ⬜ Person Processor Node
-       - ⬜ Subscribes to `/camera/image_raw` 
-       - ⬜ Processes frames to detect persons 
-       - ⬜ Publishes boolean person detected `/person_detected`
-       - ⬜ Publishes count person `/count_person`
-
+        -  ✔️ Publishes boolean red detection on `color/red_detected`
+    - ✔️ Person Processor Node
+       - ✔️ Subscribes to `/camera/image_raw` 
+       - ✔️ Processes frames to detect persons 
+       - ✔️ Publishes boolean person detected `/person_detected`
+       - ✔️ Publishes count person `/count_person`
+<!--
 ## Final Stage
 
 By the end of the project should be possible, identify a human in the video near the robo that its present in the video too and tell the robo to stop moving to keep the human safe.
+-->

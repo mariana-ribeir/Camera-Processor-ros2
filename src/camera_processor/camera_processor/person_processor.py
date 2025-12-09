@@ -8,7 +8,12 @@ from std_msgs.msg import Bool, Int32
 from cv_bridge import CvBridge
 from ament_index_python.packages import get_package_share_directory
 
-from camera_processor.processor import person_process_frame
+from camera_processor.processor import (
+    person_process_frame,
+    adjust_similarity_threshold,
+    reset_person_database,
+    get_similarity_threshold,
+)
 
 """
 ROS2 Node that simulates a camera using a video file.
@@ -23,6 +28,7 @@ class PersonProcessor(Node):
     def __init__(self):
         super().__init__('person_processor')  # ROS node name
         self.get_logger().info("Node 'person_processor' started!")
+        self.get_logger().info(f"Similarity threshold start value: {get_similarity_threshold():.2f}")
         #subscribe the image topic 
         self.subscription = self.create_subscription(
             Image,
@@ -58,7 +64,18 @@ class PersonProcessor(Node):
         cv2.namedWindow("Processed Frame", cv2.WINDOW_NORMAL)
         cv2.resizeWindow("Processed Frame", 800, 600)
         cv2.imshow("Processed Frame", processed_frame)
-        cv2.waitKey(1)
+
+        key = cv2.waitKey(1) & 0xFF
+        if key in (ord('+'), ord('=')):
+            new_threshold = adjust_similarity_threshold(0.02)
+            self.get_logger().info(f"Similarity threshold increased to {new_threshold:.2f}")
+        elif key in (ord('-'), ord('_')):
+            new_threshold = adjust_similarity_threshold(-0.02)
+            self.get_logger().info(f"Similarity threshold decreased to {new_threshold:.2f}")
+        elif key in (ord('r'), ord('R')):
+            reset_person_database()
+            self.get_logger().info("Person database reset")
+
 
 def main(args=None):
     rclpy.init(args=args)
