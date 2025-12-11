@@ -1,3 +1,10 @@
+#I added 
+
+# ROS 2 Colcon artifacts
+build/
+install/
+log/
+
 # Created by https://www.toptal.com/developers/gitignore/api/ros2,visualstudiocode,python
 # Edit at https://www.toptal.com/developers/gitignore?templates=ros2,visualstudiocode,python
 
