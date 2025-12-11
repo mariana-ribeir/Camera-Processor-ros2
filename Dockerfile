@@ -56,6 +56,16 @@ RUN cp -r /cv_bridge_ws/install/cv_bridge/local/lib/python3.10/dist-packages/cv_
 RUN cp -r /cv_bridge_ws/install/cv_bridge/local/lib/python3.10/dist-packages/cv_bridge-3.2.1-py3.10.egg-info /opt/ros/humble/local/lib/python3.10/dist-packages/
 # --- 5. BUILD DO WORKSPACE ROS2 (Focando no registro do seu pacote) ---
 
+COPY . /ros2_ws
 WORKDIR /ros2_ws
 
-CMD ["/bin/bash", "-c", "source /opt/ros/humble/setup.bash && bash"]
+# Compila o pacote 'camera'
+RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
+                  colcon build --symlink-install --packages-select camera"
+
+# Instalação editável do pacote 'camera' a partir do diretório 'src'.
+# Isto força a ligação Python e deve resolver o ModuleNotFoundError.
+RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
+                  pip3 install -e src/camera"
+
+CMD ["/bin/bash", "-c", "source /opt/ros/humble/setup.bash && source /ros2_ws/install/setup.bash && bash"]

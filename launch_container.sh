@@ -4,46 +4,32 @@
 CONTAINER_NAME="ros2_dev"
 IMAGE_TAG="ros2_ws_humble_image"
 
-# --- Step 1: Build the Image (Reconstrói apenas se o Dockerfile mudar) ---
-echo "--- 1. Building Base Image: $IMAGE_TAG ---"
+# --- Step 1: Build the Image (Using your Dockerfile) ---
+echo "--- Step 1: Building Docker Image: $IMAGE_TAG ---"
+# The '.' at the end means "use the Dockerfile in the current directory"
 docker build -t $IMAGE_TAG .
 
+# Check if the build failed
 if [ $? -ne 0 ]; then
     echo "ERROR: Docker image build failed. Exiting."
     exit 1
 fi
 
-# --- Step 2: Clean Up Previous Container (Garantir que o nome está livre) ---
-echo "--- 2. Stopping and Forcing Removal of old container: $CONTAINER_NAME ---"
-# O '-f' (force) garante que o contentor é removido mesmo se estiver a correr.
-docker rm -f $CONTAINER_NAME 2>/dev/null || true
+# --- Step 2: Clean Up Previous Container (Stop and Remove) ---
+echo "--- Step 2: Stopping and Removing old container: $CONTAINER_NAME ---"
+# The '|| true' ensures the script doesn't crash if the container doesn't exist
+docker stop $CONTAINER_NAME 2>/dev/null || true
+docker rm $CONTAINER_NAME 2>/dev/null || true
 
-# --- Step 3: Run the New Container (Montar o Código Git Local) ---
-echo "--- 3. Starting new container and mounting local Git repo to /ros2_ws ---"
+# --- Step 3: Run the New Container (Assigning the Name) ---
+echo "--- Step 3: Starting new container: $CONTAINER_NAME ---"
+echo "--- You will be inside the container with your ROS workspace mounted at /ros2_ws ---"
 
-LOCAL_PATH=$(pwd -W)
-
-# Monta o volume, executa em detached mode (-d) para que possamos usar 'exec'
-docker run -it -d \
+# The command below starts the container:
+# -it: Interactive and TTY (allows you to use the shell)
+# --name: Assigns the name
+# -v "$(pwd):/ros2_ws": Mounts your current host directory to /ros2_ws in the container
+docker run -it \
     --name $CONTAINER_NAME \
-    -v "$LOCAL_PATH:/ros2_ws" \
-    --rm \
+    -v "$(pwd):/ros2_ws" \
     $IMAGE_TAG
-
-# Esperar 1 segundo para garantir que o bash iniciou antes de executar comandos
-sleep 1
-
-# ...
-# --- Step 4: First-Time Build and Setup (Compilação do Código Git Atualizado) ---
-echo "--- 4. Building and registering the local code (ROS setup)... ---"
-
-# 1. Colcon build do seu código (COMPILOU COM SUCESSO!)
-docker exec $CONTAINER_NAME bash -c 'source /opt/ros/humble/setup.bash && colcon build --symlink-install'
-
-# --- Step 5: Attach to Container ---
-echo "--- 5. Setup complete. Attaching to container shell. Use 'exit' to stop the container. ---"
-
-# Anexa o seu terminal ao shell do contentor
-docker attach $CONTAINER_NAME
-
-echo "Container stopped"

@@ -1,3 +1,8 @@
+# Pastas de build ROS2 que não devem ser incluídas no contexto de build do Docker
 build/
 install/
 log/
+
+# Outros arquivos grandes que são gerados localmente:
+__pycache__/
+.vscode/
