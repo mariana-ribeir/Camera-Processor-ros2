@@ -11,13 +11,22 @@ from ament_index_python.packages import get_package_share_directory
 from camera_processor.processor import color_process_frame
 
 """
-ROS2 Node that simulates a camera using a video file.
+ROS 2 node responsible for receiving image streams, delegating color 
+detection processing (e.g., red color presence) to an external backend 
+script, and publishing the detection results and the processed image.
+
+Subscribes:
+    /camera/image_raw (sensor_msgs/Image): The raw video stream input.
+
+Publishes:
+    color/red_detected (std_msgs/Bool): Boolean flag indicating if the target color (red) was detected.
+    color/processed_image (sensor_msgs/Image): The frame after the computer vision processing, including annotations.
 
 Attributes:
-    publisher_ (rclpy.Publisher): Publisher for /camera/image_raw
-    cap (cv2.VideoCapture): OpenCV video capture object
-    bridge (CvBridge): Converter from OpenCV images to ROS2 Image messages
-    timer (rclpy.Timer): Timer to periodically publish frames
+    bridge (CvBridge): Utility for converting between ROS Image messages and OpenCV images (numpy arrays).
+    subscription (rclpy.Subscription): Subscription object for the input image topic.
+    red_pub (rclpy.Publisher): Publisher for the boolean detection flag.
+    processed_pub (rclpy.Publisher): Publisher for the annotated image stream.
 """
 class ColorProcessor(Node):
     def __init__(self):

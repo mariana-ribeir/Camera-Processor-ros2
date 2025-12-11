@@ -13,23 +13,25 @@ It also includes a placeholder for vision processing (`processor.py`).
 
 This project uses Docker to ensure a consistent ROS2 environment across machines.
 
+### 1. Prerequisites
+* Docker Desktop (WSL Option).
+* Visual Studio Code (VS Code).
+* VS Code Extension: Dev Containers (formerly "Remote - Containers").
 
-Inside the project root lets create the Docker image: 
+### 2.Launching the Environment
 
-Pull the ROS 2 Humble Desktop image: 
+You do not need to run manual Docker commands. VS Code will handle the container setup automatically:
 
-```bash
-docker build -t ros2-humble-yolo .
-```
+1.  **Clone the Repository::** Clone this repository to your local system.
+2.  **Open in VS Code:** Open the project's root folder (`/ros2_ws`) in VS Code .
+3.  **Launch the Container:** When VS Code opened notification should appear asking **"Reopen in Container?"**, click 
+    * (If the notification doesn't appear, press $\text{Ctrl} + \text{Shift} + \text{P}$ (or $\text{Cmd} + \text{Shift} + \text{P}$) and execute the command Dev Containers: Reopen in Container).
+    
+VS Code will build the image and launch a Linux container where your source code is mounted, with all ROS 2 dependencies pre-configured in `Dockerfile`
 
-Run a container mapping a Windows folder
+### 3. ROS 2 Development Workflow
 
-
-```bash
-docker run -it --name ros2_yolo_container -v C:\path\to\windows\folder:/ros2_ws ros:ros2-humble-yolo 
-```
-
-Inside the container, your Windows files are accessible at /ros2_ws. You can now run ROS 2 commands or launch nodes directly.
+All commands must be executed within the VS Code Integrated Terminal (which is already inside the Linux container).
 
 To test if the ROS2 is currently installed:
 
@@ -39,32 +41,8 @@ ros2 --help
 ros2 doctor
 ```
 
-To stop the running container:
-
-```bash
-docker stop ros2_yolo_container
-```
-
-To restart it later:
-
-```bash
-docker start -ai ros2_yolo_container
-```
--a ->  attacth to the container
--i ->  keep the container interactive
-
-## Installation
-
-Make sure you made the Docker steps, or have ROS2 installed by another away (directly on WSL or Linux, Virtual Machines...)
-
-Clone the package into your ROS2 workspace:
-
-```bash
-cd ~/ros2_ws/src
-git clone https://github.com/mariana-ribeiro/camera-processor-ros2.git
-```
-
-Build the workspace:
+To build the workspace:
+(Whenever you make changes to Python or C++ files, recompile using the terminal)
 
 ```bash
 cd ~/ros2_ws

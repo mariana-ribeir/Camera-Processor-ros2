@@ -9,6 +9,9 @@ from ament_index_python.packages import get_package_share_directory
 """
 ROS2 Node that simulates a camera using a video file.
 
+Publishes:
+    /camera/image_raw (sensor_msgs/Image): The raw video stream input.
+
 Attributes:
     publisher_ (rclpy.Publisher): Publisher for /camera/image_raw
     timer (rclpy.Timer): Timer to periodically publish frames

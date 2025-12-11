@@ -63,6 +63,19 @@ def color_process_frame(frame):
 
     return red_highlighted, detected
 
+"""
+Executa a deteção e contagem de pessoas num frame usando o modelo YOLOv8-pose.
+
+Args:
+    frame (numpy.ndarray): Frame de imagem de entrada (formato BGR).
+
+Returns:
+    tuple: (
+        annotated_frame (numpy.ndarray): Frame com caixas delimitadoras de pessoas.
+        people_detected (bool): True se houver deteção.
+        people_count (int): Número de pessoas detetadas.
+    )
+"""
 def person_process_frame_old(frame):
     pkg_share = get_package_share_directory('camera')
     model_dir = os.path.join(pkg_share, 'model')

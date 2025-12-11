@@ -16,13 +16,24 @@ from camera_processor.processor import (
 )
 
 """
-ROS2 Node that simulates a camera using a video file.
+ROS2 Node for real-time human detection and counting.
+
+Subscribes to raw camera images, processes them using computer vision
+to detect people, and publishes the detection status and count.
+Also allows runtime adjustment of the similarity threshold via keyboard input.
+
+Subscribes:
+    /camera/image_raw (sensor_msgs/Image): The raw video stream input.
+
+Publishes:
+    person/detected (std_msgs/Bool): Boolean flag indicating if some person was detected.
+    person/count (std_msgs/Int32): Integer number indicating the number of persons was detected.
 
 Attributes:
-    publisher_ (rclpy.Publisher): Publisher for /camera/image_raw
-    cap (cv2.VideoCapture): OpenCV video capture object
-    bridge (CvBridge): Converter from OpenCV images to ROS2 Image messages
-    timer (rclpy.Timer): Timer to periodically publish frames
+    subscription (rclpy.Subscription): Subscriber to the '/camera/image_raw' topic.
+    detected_pub (rclpy.Publisher): Publisher for the 'person/detected' (Bool) topic.
+    count_pub (rclpy.Publisher): Publisher for the 'person/count' (Int32) topic.
+    bridge (CvBridge): Converter between OpenCV images and ROS2 Image messages.
 """
 class PersonProcessor(Node):
     def __init__(self):
