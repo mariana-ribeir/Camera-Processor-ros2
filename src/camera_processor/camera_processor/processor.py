@@ -78,7 +78,7 @@ Returns:
 """
 def person_process_frame_old(frame):
     pkg_share = get_package_share_directory('camera')
-    model_dir = os.path.join(pkg_share, 'model')
+    model_dir = os.path.join(pkg_share, 'models')
     model_path = os.path.join(model_dir, 'yolov8n-pose.pt')
 
     model = YOLO(model_path)

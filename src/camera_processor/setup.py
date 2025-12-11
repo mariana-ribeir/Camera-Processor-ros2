@@ -29,6 +29,7 @@ setup(
         'console_scripts': [
             'color_processor = camera_processor.color_processor:main',
             'person_processor = camera_processor.person_processor:main',
+            'pose_processor = camera_processor.pose_processor:main'
         ],
     },
 )
