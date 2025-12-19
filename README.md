@@ -1,4 +1,4 @@
-# Camera Processor ROS2 Package
+# Camera Processor ROS2 Package.
 
 This ROS2 package simulates a camera using a video file and publishes frames as ROS2 image messages.  
 It also includes a placeholder for vision processing (`processor.py`).
