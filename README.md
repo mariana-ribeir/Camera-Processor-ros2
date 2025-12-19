@@ -72,31 +72,32 @@ ros2 run rqt_image_view rqt_image_view
 ## Architecture Overview
 
 ```
-                        +--------------------+
-                        |   Camera Node      |
-                        | (camera_simulator) |
-                        +--------------------+
-                               | 
-              -----------------+-----------------
-              |                                   |
-  /camera/image_raw                        /camera/image_raw
-              |                                   |
-  +-------------------------+         +-------------------------+
-  |   Color Processor Node  |         |  Person Processor Node  |
-  |   (color_processor)     |         |   (person_processor)    |
-  +-------------------------+         +-------------------------+
-  | /color/frame_processed  |         |  person/detected        |
-  | /color/red_detected     |         |  person/count           |
-  |                         |         |  person/frame_processed |
-  +-------------------------+         +-------------------------+
+                                       +--------------------+
+                                       |   Camera Node      |
+                                       | (camera_simulator) |
+                                       +--------------------+
+                                                  | 
+              -----------------+------------------+----------------------------------+
+              |                                   |                                  |
+      /camera/image_raw                 /camera/image_raw                    /camera/image_raw
+              |                                   |                                  |
+  +-------------------------+         +-------------------------+        +-------------------------+
+  |   Color Processor Node  |         |  Person Processor Node  |        |   Pose Processor Node   |
+  |   (color_processor)     |         |   (person_processor)    |        |   (pose_processor)      |
+  +-------------------------+         +-------------------------+        +-------------------------+
+  | /color/frame_processed  |         |  person/detected        |        |  pose/detected          |
+  | /color/red_detected     |         |  person/count           |        |                         |
+  +-------------------------+         +-------------------------+        +-------------------------+
+
 
 ```
 
-| Package                     | Node name          | Purpose                                                |
-| --------------------------- | ------------------ | ------------------------------------------------------ |
-| `camera`                    | `camera_publisher` | Publishes raw video frames                             |
-| `camera-processor`          | `color_processor`  | Processes frames to detect colors and publish results  |
-|                             | `person_processor` | Processes frames to detect persons and publish results |
+| Package                     | Node name          | Purpose                                                     |
+| --------------------------- | ------------------ | ----------------------------------------------------------  |
+| `camera`                    | `camera_publisher` | Publishes raw video frames                                  |
+| `camera-processor`          | `color_processor`  | Processes frames to detect colors and publish results       |
+|                             | `person_processor` | Processes frames to detect persons and publish results      |
+|                             | `pose_processor`   | Processes frames to detect pose persons and publish results |
 
 
 
@@ -119,6 +120,10 @@ Current this project is in **Early Stage** its like the initial phase, undertsta
        - ✔️ Processes frames to detect persons 
        - ✔️ Publishes boolean person detected `/person_detected`
        - ✔️ Publishes count person `/count_person`
+    - ✔️ Pose Person Processor Node
+       - ✔️ Subscribes to `/camera/image_raw` 
+       - ✔️ Processes frames to pose persons 
+       - ✔️ Publishes string pose person detected `/pose_detected`
 <!--
 ## Final Stage
 
