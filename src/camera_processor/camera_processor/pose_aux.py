@@ -43,8 +43,8 @@ def pose_process_frame(frame):
                 
             # Mostrar a classificação no frame
             label = f'{pose}'
-            cv2.putText(annotated_frame, label, (x1, y1 - 25), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.putText(annotated_frame, label, (x1, y1 - 40), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 3)
                 
             print(f"Pessoa {i+1}: {pose}")
         
@@ -96,34 +96,46 @@ def classify_pose(keypoints):
     # Altura relativa (dos ombros às ancas)
     torso_height = np.linalg.norm(shoulder_center - hip_center)
     
-    # Ângulo das pernas (aprox. se joelhos estiverem dobrados)
+    # Ângulo das pernas - ángulo grande indica doblada (sentada), pequeño indica extendida (de pie)
     leg_angle = "estendida"
+    angle_l = 180
+    angle_r = 180
     if has_knees and has_ankles:
-        knee_to_hip = pts[13] - pts[11] if vis[11] else np.array([0, 0])
-        knee_to_ankle = pts[15] - pts[13] if vis[13] and vis[15] else np.array([0, 0])
-        if np.linalg.norm(knee_to_hip) > 0 and np.linalg.norm(knee_to_ankle) > 0:
-            cos_angle = np.dot(knee_to_hip, knee_to_ankle) / (np.linalg.norm(knee_to_hip) * np.linalg.norm(knee_to_ankle))
-            angle = np.arccos(np.clip(cos_angle, -1, 1)) * 180 / np.pi
-            if angle < 120:  # Ângulo agudo indica dobrada
-                leg_angle = "dobrada"
+        # Pierna izquierda
+        knee_to_hip_l = pts[13] - pts[11] if vis[11] and vis[13] else np.array([0, 0])
+        knee_to_ankle_l = pts[15] - pts[13] if vis[13] and vis[15] else np.array([0, 0])
+        angle_l = 180
+        if np.linalg.norm(knee_to_hip_l) > 0 and np.linalg.norm(knee_to_ankle_l) > 0:
+            cos_angle_l = np.dot(knee_to_hip_l, knee_to_ankle_l) / (np.linalg.norm(knee_to_hip_l) * np.linalg.norm(knee_to_ankle_l))
+            angle_l = np.arccos(np.clip(cos_angle_l, -1, 1)) * 180 / np.pi
+        
+        # Pierna derecha
+        knee_to_hip_r = pts[14] - pts[12] if vis[12] and vis[14] else np.array([0, 0])
+        knee_to_ankle_r = pts[16] - pts[14] if vis[14] and vis[16] else np.array([0, 0])
+        angle_r = 180
+        if np.linalg.norm(knee_to_hip_r) > 0 and np.linalg.norm(knee_to_ankle_r) > 0:
+            cos_angle_r = np.dot(knee_to_hip_r, knee_to_ankle_r) / (np.linalg.norm(knee_to_hip_r) * np.linalg.norm(knee_to_ankle_r))
+            angle_r = np.arccos(np.clip(cos_angle_r, -1, 1)) * 180 / np.pi
+        
+        # Si alguna pierna tiene ángulo > 90, considerar doblada (sentada)
+        if angle_l > 90 or angle_r > 90:
+            leg_angle = "dobrada"
     
-    # Orientação geral
-    if has_nose:
-        head_to_torso = pts[0] - shoulder_center
-        orientation = "vertical" if abs(head_to_torso[1]) > abs(head_to_torso[0]) else "horizontal"
-    else:
-        orientation = "desconhecida"
+    # Orientação geral baseada no torso
+    torso_vector = shoulder_center - hip_center
+    orientation = "vertical" if abs(torso_vector[1]) > abs(torso_vector[0]) else "horizontal"
     
     # Classificação heurística melhorada
-    # Classificação heurística
     if orientation == "horizontal":
-        return "Deitada"
+        pose = "Deitada"
     elif leg_angle == "dobrada":
-        return "Sentada"
+        pose = "Sentada"
     elif leg_angle == "estendida":
-        return "De pé"
+        pose = "De pe"
     else:
-        return "Desconhecida"
+        pose = "Desconhecida"
+    
+    return pose
 
 
 
