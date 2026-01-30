@@ -1,4 +1,4 @@
-# Camera Processor ROS2 Package.
+# Camera Processor ROS2 Package
 
 This ROS2 package simulates a camera using a video file and publishes frames as ROS2 image messages.  
 It also includes a placeholder for vision processing (`processor.py`).
@@ -11,32 +11,49 @@ It also includes a placeholder for vision processing (`processor.py`).
 
 ## Docker Workflow
 
-This project uses Docker to ensure a consistent ROS2 environment across machines.
+This project uses Docker to ensure a consistent ROS2 Jazzy environment across machines.
 
 ### 1. Prerequisites
 * Docker Desktop (WSL Option).
 * Visual Studio Code (VS Code).
 * VS Code Extension: Dev Containers (formerly "Remote - Containers").
+* **VcXsrv** (X Server for Windows) - Required for displaying OpenCV windows.
 
-### 2.Launching the Environment
+### 2. Setting Up VcXsrv (Required for Display)
+
+Since the application uses `cv2.imshow()` to display video frames, you need an X server on Windows:
+
+1. **Download VcXsrv:** https://sourceforge.net/projects/vcxsrv/
+2. **Install** with default options
+3. **Run XLaunch** from Start menu with these settings:
+   - Select "Multiple windows" → Next
+   - Select "Start no client" → Next
+   - ✅ Check **"Disable access control"** (important!)
+   - Click Finish
+4. VcXsrv icon should appear in your system tray
+
+> **Note:** You must start VcXsrv **before** opening the Dev Container.
+
+### 3. Launching the Environment
 
 You do not need to run manual Docker commands. VS Code will handle the container setup automatically:
 
-1.  **Clone the Repository::** Clone this repository to your local system.
-2.  **Open in VS Code:** Open the project's root folder (`/ros2_ws`) in VS Code .
-3.  **Launch the Container:** When VS Code opened notification should appear asking **"Reopen in Container?"**, click 
+1.  **Clone the Repository:** Clone this repository to your local system.
+2.  **Start VcXsrv:** Make sure XLaunch is running (see step 2 above).
+3.  **Open in VS Code:** Open the project's root folder (`/ros2_ws`) in VS Code.
+4.  **Launch the Container:** When VS Code opened notification should appear asking **"Reopen in Container?"**, click 
     * (If the notification doesn't appear, press $\text{Ctrl} + \text{Shift} + \text{P}$ (or $\text{Cmd} + \text{Shift} + \text{P}$) and execute the command Dev Containers: Reopen in Container).
     
 VS Code will build the image and launch a Linux container where your source code is mounted, with all ROS 2 dependencies pre-configured in `Dockerfile`
 
-### 3. ROS 2 Development Workflow
+### 4. ROS 2 Development Workflow
 
 All commands must be executed within the VS Code Integrated Terminal (which is already inside the Linux container).
 
 To test if the ROS2 is currently installed:
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 ros2 --help
 ros2 doctor
 ```
@@ -45,7 +62,7 @@ To build the workspace:
 (Whenever you make changes to Python or C++ files, recompile using the terminal)
 
 ```bash
-cd ~/ros2_ws
+cd /workspaces/ros2_ws
 colcon build
 source install/setup.bash
 ```

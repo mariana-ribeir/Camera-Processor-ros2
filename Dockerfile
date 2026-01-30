@@ -1,71 +1,64 @@
-FROM ros:humble-ros-base
+FROM ros:jazzy-ros-base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# --- 1. INSTALAÇÃO DE FERRAMENTAS BASE E DEPENDÊNCIAS DE BUILD ---
+# --- 1. FERRAMENTAS E DEPENDÊNCIAS ---
+# Install GTK3 for OpenCV display (like Humble used) instead of Qt6
 RUN apt update && apt install -y \
     python3-pip \
-    python3-opencv \
+    python3-setuptools \
     git wget curl \
-    ros-humble-vision-opencv \
+    ros-jazzy-vision-opencv \
+    ros-jazzy-rqt-image-view \
     build-essential \
-    libboost-dev \
-    libboost-python-dev \
+    libboost-all-dev \
+    # GTK3 dependencies (works better in Docker than Qt6)
+    libgtk-3-0 \
+    libgtk-3-dev \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libx11-6 \
+    x11-apps \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip
-RUN pip3 install --upgrade pip
+# --- 1b. INSTALL OPENCV WITH GTK SUPPORT ---
+# Use --ignore-installed to bypass system numpy that can't be uninstalled
+RUN pip3 install --break-system-packages --ignore-installed opencv-python
 
-# --- 2. INSTALAÇÃO DE TODAS AS DEPENDÊNCIAS PYTHON (NumPy 2.x) ---
-RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-RUN pip3 install ultralytics
-RUN pip3 install torchreid gdown tensorboard scipy scikit-learn
+# Environment variable to help with display
+ENV QT_X11_NO_MITSHM=1
+ENV OPENCV_VIDEOIO_PRIORITY_GSTREAMER=0
 
-# ⚠️ NOVIDADE: Limpeza de qualquer cv_bridge instalado via APT
-RUN apt remove -y ros-humble-cv-bridge || true
+# --- 2. DEPENDÊNCIAS PYTHON ---
+RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu --break-system-packages
+RUN pip3 install ultralytics torchreid gdown tensorboard scipy scikit-learn \
+    --break-system-packages \
+    --ignore-installed numpy
 
-# --- 3. FIX CRÍTICO: BUILD DO CV_BRIDGE CONTRA NUMPY 2.x ---
-WORKDIR /
-RUN git clone https://github.com/ros-perception/vision_opencv.git
-WORKDIR /vision_opencv
-RUN git checkout humble
+# --- 3. FIX CV_BRIDGE ---
+WORKDIR /opt/cv_bridge_build
+RUN git clone https://github.com/ros-perception/vision_opencv.git -b rolling src/vision_opencv --depth 1
 
-RUN mkdir -p /cv_bridge_ws/src
-RUN mv cv_bridge /cv_bridge_ws/src/
-WORKDIR /cv_bridge_ws
+RUN /bin/bash -c "source /opt/ros/jazzy/setup.bash && \
+    colcon build --packages-select cv_bridge --symlink-install"
 
-# Compila o cv_bridge usando o NumPy 2.x
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
-                  rosdep install --from-paths src --ignore-src -r -y && \
-                  colcon build --packages-select cv_bridge --symlink-install"
+RUN mkdir -p /opt/ros/jazzy/lib/python3.12/site-packages/
+RUN cp -r install/cv_bridge/lib/python3.12/site-packages/cv_bridge /opt/ros/jazzy/lib/python3.12/site-packages/
 
-# --- 4. SUBSTITUIÇÃO FORÇADA ---
-# 1. Limpa o cache de otimização do Python.
-RUN find /usr/lib/python3.10 -name "__pycache__" -exec rm -rf {} +
+# --- 4. WORKSPACE DO UTILIZADOR ---
+ARG WORKSPACE=/workspaces/ros2_ws
+WORKDIR $WORKSPACE
+COPY . $WORKSPACE
 
-# 2. Elimina a versão antiga do cv_bridge que era incompatível.
-RUN rm -rf /opt/ros/humble/local/lib/python3.10/dist-packages/cv_bridge
+# Removidas as variáveis SETUPTOOLS_USE_DISTUTILS que causaram erro no Python 3.12
+# Compilar o teu código
+RUN /bin/bash -c "source /opt/ros/jazzy/setup.bash && \
+    colcon build"
 
-# 3. ⚠️ CORREÇÃO DEFINITIVA: Copia o conteúdo C++ e headers.
-# Copia o conteúdo principal de "share" e "include" para o destino.
-RUN cp -r /cv_bridge_ws/install/cv_bridge/share/* /opt/ros/humble/share/
-RUN cp -r /cv_bridge_ws/install/cv_bridge/include/* /opt/ros/humble/include/
+# --- 5. CONFIGURAÇÃO DO TERMINAL ---
+RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc && \
+    echo "source $WORKSPACE/install/setup.bash" >> ~/.bashrc
 
-# 4. 🔑 CÓPIA DO MÓDULO PYTHON: Copia o módulo compilado para o caminho Python.
-RUN cp -r /cv_bridge_ws/install/cv_bridge/local/lib/python3.10/dist-packages/cv_bridge /opt/ros/humble/local/lib/python3.10/dist-packages/
-RUN cp -r /cv_bridge_ws/install/cv_bridge/local/lib/python3.10/dist-packages/cv_bridge-3.2.1-py3.10.egg-info /opt/ros/humble/local/lib/python3.10/dist-packages/
-# --- 5. BUILD DO WORKSPACE ROS2 (Focando no registro do seu pacote) ---
-
-COPY . /ros2_ws
-WORKDIR /ros2_ws
-
-# Compila o pacote 'camera'
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
-                  colcon build --symlink-install --packages-select camera"
-
-# Instalação editável do pacote 'camera' a partir do diretório 'src'.
-# Isto força a ligação Python e deve resolver o ModuleNotFoundError.
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
-                  pip3 install -e src/camera"
-
-CMD ["/bin/bash", "-c", "source /opt/ros/humble/setup.bash && source /ros2_ws/install/setup.bash && bash"]
+CMD ["/bin/bash"]
