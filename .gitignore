@@ -1,6 +1,7 @@
 #I added 
 # VS Code Dev Container Configuration
 .devcontainer
+.vscode
 
 # ROS 2 Colcon artifacts
 build/
