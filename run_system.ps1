@@ -41,19 +41,23 @@ if ($containerExists) {
     docker exec camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && cd /workspaces/ros2_ws && colcon build'
 }
 
-# Passo 4: Lançar camera_simulator
+# Passo 4: Matar nodos existentes para evitar duplicados
+Write-Host "Matando nodos existentes..."
+docker exec camera_ws pkill -f "ros2 run" 2>$null
+
+# Passo 5: Lançar camera_simulator
 Write-Host "Lançando camera_simulator..."
 docker exec -d camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera camera_simulator'
 
-# Passo 5: Lançar color_processor
+# Passo 6: Lançar color_processor
 Write-Host "Lançando color_processor..."
 docker exec -d camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor color_processor'
 
-# Passo 6: Lançar person_processor
+# Passo 7: Lançar person_processor
 Write-Host "Lançando person_processor..."
 docker exec -d camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor person_processor'
 
-# Passo 7: Lançar pose_processor
+# Passo 8: Lançar pose_processor
 Write-Host "Lançando pose_processor..."
 docker exec -d camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor pose_processor'
 
@@ -70,19 +74,19 @@ if ($containerStatus -notlike "*Up*") {
     exit 1
 }
 
-# Passo 8: Listar tópicos
+# Passo 9: Listar tópicos
 Write-Host "Listando tópicos..."
 docker exec camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic list'
 
-# Passo 9: Ouvir /person/count
+# Passo 10: Ouvir /person/count
 Write-Host "Ouvindo /person/count..."
 docker exec camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /person/count'
 
-# Passo 10: Ouvir /person/detected
+# Passo 11: Ouvir /person/detected
 Write-Host "Ouvindo /person/detected..."
 docker exec camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /person/detected'
 
-# Passo 11: Ouvir /pose/detected
+# Passo 12: Ouvir /pose/detected
 Write-Host "Ouvindo /pose/detected..."
 docker exec camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /pose/detected'
 
