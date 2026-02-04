@@ -23,6 +23,9 @@ RUN apt update && apt install -y \
     x11-apps \
     && rm -rf /var/lib/apt/lists/*
 
+# Upgrade setuptools to support --editable
+RUN pip3 install --upgrade setuptools --break-system-packages
+
 # --- 1b. INSTALL OPENCV WITH GTK SUPPORT ---
 # Use --ignore-installed to bypass system numpy that can't be uninstalled
 RUN pip3 install --break-system-packages --ignore-installed opencv-python
@@ -33,7 +36,7 @@ ENV OPENCV_VIDEOIO_PRIORITY_GSTREAMER=0
 
 # --- 2. DEPENDÊNCIAS PYTHON ---
 RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu --break-system-packages
-RUN pip3 install ultralytics torchreid gdown tensorboard scipy scikit-learn \
+RUN pip3 install ultralytics torchreid gdown tensorboard scipy scikit-learn lap \
     --break-system-packages \
     --ignore-installed numpy
 

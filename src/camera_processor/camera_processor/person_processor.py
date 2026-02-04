@@ -55,10 +55,6 @@ class PersonProcessor(Node):
     def listener_callback(self, msg):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
-        cv2.namedWindow("Real Frame", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("Real Frame", 800, 600)
-        cv2.imshow("Real Frame", frame)
-
         # process the current frame in computer vision script
         processed_frame, people_detected, people_count  = person_process_frame(frame)
 
