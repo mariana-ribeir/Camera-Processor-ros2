@@ -8,16 +8,15 @@ import time
 import numpy as np
 from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 
-
-def pose_process_frame(frame):
+def pose_process_frame_keypoints(frame):
     # Variáveis para calcular FPS
     fps_counter = 0
     start_time = time.time()
     fps = 0
 
-    pkg_share = get_package_share_directory('camera')
+    pkg_share = get_package_share_directory('camera_processor')
     model_dir = os.path.join(pkg_share, 'models')
-    model_path = os.path.join(model_dir, 'yolov8n-pose.pt')
+    model_path = os.path.join(model_dir, 'best.pt')
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     #print(f"A usar dispositivo: {device}")

@@ -7,10 +7,9 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from cv_bridge import CvBridge
 from ament_index_python.packages import get_package_share_directory
+from ultralytics import YOLO
 
-from camera_processor.pose_aux import (
-    pose_process_frame
-)
+from camera_processor.helpers.pose_ai import pose_process_frame_model
 
 """
 ROS2 Node for real-time human pose detection.
@@ -25,18 +24,28 @@ Attributes:
     subscription (rclpy.Subscription): Subscriber to the '/camera/image_raw' topic.
     bridge (CvBridge): Converter between OpenCV images and ROS2 Image messages.
 """
-class PoseProcessor(Node):
+class IaPoseNode(Node):
     def __init__(self):
-        super().__init__('pose_processor')  # ROS node name
-        self.get_logger().info("Node 'pose_processor' started!")
+        super().__init__('ia_pose')  # ROS node name
+        self.get_logger().info("Node 'ia_pose' started!")
+        
+        # path setup
+        pkg_share = get_package_share_directory('camera_processor')
+        model_path = os.path.join(pkg_share, 'models', 'best.pt')
+
+        # load the model
+        self.get_logger().info(f"Loading YOLO model from {model_path}...")
+        self.model = YOLO(model_path)
+
         #subscribe the image topic 
         self.subscription = self.create_subscription(
             Image,
             '/camera/image_raw',
             self.listener_callback,
             10)
+
         #create an boolean topic to see if some person is present in frame or not 
-        self.detected_pub = self.create_publisher(String, 'pose/detected', 10)
+        self.detected_pub = self.create_publisher(String, 'pose/ia/detected', 10)
         self.bridge = CvBridge()
 
     def listener_callback(self, msg):
@@ -47,7 +56,7 @@ class PoseProcessor(Node):
         cv2.imshow("Real Frame", frame)
 
         # process the current frame in computer vision script
-        processed_frame, detected_poses  = pose_process_frame(frame)
+        processed_frame, detected_poses= pose_process_frame_model(frame, self.model, self.get_logger())
 
         # 1. Publish the detection message (e.g., the combined pose string)
         if detected_poses:
@@ -77,7 +86,7 @@ class PoseProcessor(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = PoseProcessor()
+    node = IaPoseNode()
     rclpy.spin(node)
     node.destroy_node()
     cv2.destroyAllWindows()
