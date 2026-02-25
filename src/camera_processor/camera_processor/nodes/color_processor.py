@@ -32,6 +32,17 @@ class ColorProcessor(Node):
     def __init__(self):
         super().__init__('color_processor')  # ROS node name
         self.get_logger().info("Node 'color_processor' started!")
+
+        # parameter for GUI toggle
+        self.declare_parameter('show_gui', True)
+        self.show_gui = self.get_parameter('show_gui').value
+
+        if self.show_gui:
+            cv2.namedWindow("Real Frame", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("Real Frame", 800, 600)
+            cv2.namedWindow("Processed Frame", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("Processed Frame", 800, 600)
+
         #subscribe the image topic 
         self.subscription = self.create_subscription(
             Image,
@@ -48,10 +59,11 @@ class ColorProcessor(Node):
         # process the current frame in computer vision script
         processed, red_detected = color_process_frame(frame)
 
-        cv2.namedWindow("Processed Frame", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("Processed Frame", 800, 600)
-        cv2.imshow("Processed Frame", processed)
-        cv2.waitKey(1)
+
+        if self.show_gui:
+            cv2.imshow("Real Frame", frame)
+            cv2.imshow("Processed Frame", processed)
+            cv2.waitKey(1)
 
         #publish detection message
         det_msg = Bool()
@@ -63,7 +75,8 @@ def main(args=None):
     node = ColorProcessor()
     rclpy.spin(node)
     node.destroy_node()
-    cv2.destroyAllWindows()
+    if node.show_gui:
+        cv2.destroyAllWindows()
     rclpy.shutdown()
 
 if __name__ == '__main__':

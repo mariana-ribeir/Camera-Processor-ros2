@@ -7,6 +7,7 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Bool, Int32
 from cv_bridge import CvBridge
 from ament_index_python.packages import get_package_share_directory
+from ultralytics import YOLO
 
 from camera_processor.processor import (
     person_process_frame,
@@ -40,6 +41,23 @@ class PersonProcessor(Node):
         super().__init__('person_processor')  # ROS node name
         self.get_logger().info("Node 'person_processor' started!")
         self.get_logger().info(f"Similarity threshold start value: {get_similarity_threshold():.2f}")
+
+        # path setup for model
+        pkg_share = get_package_share_directory('camera_processor')
+        model_path = os.path.join(pkg_share, 'models', 'yolov8n-pose.pt')
+
+        # load the model
+        self.get_logger().info(f"Loading YOLO model from {model_path}...")
+        self.model = YOLO(model_path)
+
+        self.declare_parameter('show_gui', True)
+        self.show_gui = self.get_parameter('show_gui').value
+
+        if self.show_gui:
+            cv2.namedWindow("Processed Frame", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("Processed Frame", 800, 600)
+
+
         #subscribe the image topic 
         self.subscription = self.create_subscription(
             Image,
@@ -56,7 +74,7 @@ class PersonProcessor(Node):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
         # process the current frame in computer vision script
-        processed_frame, people_detected, people_count  = person_process_frame(frame)
+        processed_frame, people_detected, people_count  = person_process_frame(frame, self.model)
 
         #publish detection message
         det_msg = Bool()
@@ -68,20 +86,18 @@ class PersonProcessor(Node):
         count_msg.data = people_count  # set the Python int into the ROS message
         self.count_pub.publish(count_msg)
 
-        cv2.namedWindow("Processed Frame", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("Processed Frame", 800, 600)
-        cv2.imshow("Processed Frame", processed_frame)
-
-        key = cv2.waitKey(1) & 0xFF
-        if key in (ord('+'), ord('=')):
-            new_threshold = adjust_similarity_threshold(0.02)
-            self.get_logger().info(f"Similarity threshold increased to {new_threshold:.2f}")
-        elif key in (ord('-'), ord('_')):
-            new_threshold = adjust_similarity_threshold(-0.02)
-            self.get_logger().info(f"Similarity threshold decreased to {new_threshold:.2f}")
-        elif key in (ord('r'), ord('R')):
-            reset_person_database()
-            self.get_logger().info("Person database reset")
+        if self.show_gui:
+            cv2.imshow("Processed Frame", processed_frame)
+            key = cv2.waitKey(1) & 0xFF
+            if key in (ord('+'), ord('=')):
+                new_threshold = adjust_similarity_threshold(0.02)
+                self.get_logger().info(f"Similarity threshold increased to {new_threshold:.2f}")
+            elif key in (ord('-'), ord('_')):
+                new_threshold = adjust_similarity_threshold(-0.02)
+                self.get_logger().info(f"Similarity threshold decreased to {new_threshold:.2f}")
+            elif key in (ord('r'), ord('R')):
+                reset_person_database()
+                self.get_logger().info("Person database reset")
 
 
 def main(args=None):
@@ -89,7 +105,8 @@ def main(args=None):
     node = PersonProcessor()
     rclpy.spin(node)
     node.destroy_node()
-    cv2.destroyAllWindows()
+    if node.show_gui:
+        cv2.destroyAllWindows()
     rclpy.shutdown()
 
 if __name__ == '__main__':
