@@ -50,7 +50,7 @@ class PersonProcessor(Node):
         self.get_logger().info(f"Loading YOLO model from {model_path}...")
         self.model = YOLO(model_path)
 
-        self.declare_parameter('show_gui', True)
+        self.declare_parameter('show_gui', False)
         self.show_gui = self.get_parameter('show_gui').value
 
         if self.show_gui:

@@ -30,7 +30,7 @@ class IaPoseNode(Node):
         self.get_logger().info("Node 'ia_pose' started!")
 
         # parameter for GUI toggle
-        self.declare_parameter('show_gui', True)
+        self.declare_parameter('show_gui', False)
         self.show_gui = self.get_parameter('show_gui').value
 
         if self.show_gui:
