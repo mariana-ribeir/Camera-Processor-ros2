@@ -38,7 +38,11 @@ class ColorProcessor(Node):
         self.bridge = CvBridge()
 
         #publish the processed image so we can see it remotely
-        self.image_pub = self.create_publisher(Image, 'color/processed_image', 1)
+        self.declare_parameter('show_gui', False)
+        self.show_gui = self.get_parameter('show_gui').value
+
+        if self.show_gui:
+            self.image_pub = self.create_publisher(Image, 'color/processed_image', 1)
 
 
     def listener_callback(self, msg):
@@ -48,8 +52,9 @@ class ColorProcessor(Node):
         processed, red_detected = color_process_frame(frame)
 
         # publish the processed image itself
-        img_msg = self.bridge.cv2_to_imgmsg(processed, encoding="bgr8")
-        self.image_pub.publish(img_msg)
+        if self.show_gui:   
+            img_msg = self.bridge.cv2_to_imgmsg(processed, encoding="bgr8")
+            self.image_pub.publish(img_msg)
 
         #publish detection message
         det_msg = Bool()

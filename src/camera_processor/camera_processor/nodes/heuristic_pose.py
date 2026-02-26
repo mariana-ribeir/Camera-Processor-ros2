@@ -34,7 +34,11 @@ class HeuristicPoseNode(Node):
             self.listener_callback,
             10)
         
-        self.image_pub = self.create_publisher(Image, 'pose_heuristic/processed_image', 1)
+        self.declare_parameter('show_gui', False)
+        self.show_gui = self.get_parameter('show_gui').value
+
+        if self.show_gui:
+            self.image_pub = self.create_publisher(Image, 'pose_heuristic/processed_image', 1)
 
         #create an boolean topic to see if some person is present in frame or not 
         self.detected_pub = self.create_publisher(String, 'pose/heuristic/detected', 10)
@@ -65,10 +69,10 @@ class HeuristicPoseNode(Node):
             self.get_logger().debug("No person detected.") # Use debug for frequent non-critical updates
 
 
-        #publish the processed image for the Web Server ---
-        # This is what you will see in your Chrome browser
-        img_msg = self.bridge.cv2_to_imgmsg(processed_frame, encoding="bgr8")
-        self.image_pub.publish(img_msg)
+        #publish the processed image for the Web Server
+        if self.show_gui:
+            img_msg = self.bridge.cv2_to_imgmsg(processed_frame, encoding="bgr8")
+            self.image_pub.publish(img_msg)
 
 
 def main(args=None):

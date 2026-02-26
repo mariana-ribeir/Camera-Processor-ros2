@@ -50,8 +50,12 @@ class PersonProcessor(Node):
         self.get_logger().info(f"Loading YOLO model from {model_path}...")
         self.model = YOLO(model_path)
 
-        self.image_pub = self.create_publisher(Image, 'person/processed_image', 1)
+        self.declare_parameter('show_gui', False)
+        self.show_gui = self.get_parameter('show_gui').value
 
+        if self.show_gui:
+            self.image_pub = self.create_publisher(Image, 'person/processed_image', 1)
+        
         #subscribe the image topic 
         self.subscription = self.create_subscription(
             Image,
@@ -80,10 +84,10 @@ class PersonProcessor(Node):
         count_msg.data = people_count  # set the Python int into the ROS message
         self.count_pub.publish(count_msg)
 
-        #publish the processed image for the Web Server ---
-        # This is what you will see in your Chrome browser
-        img_msg = self.bridge.cv2_to_imgmsg(processed_frame, encoding="bgr8")
-        self.image_pub.publish(img_msg)
+        #publish the processed image for the Web Server 
+        if self.show_gui:
+            img_msg = self.bridge.cv2_to_imgmsg(processed_frame, encoding="bgr8")
+            self.image_pub.publish(img_msg)
 
 def main(args=None):
     rclpy.init(args=args)
