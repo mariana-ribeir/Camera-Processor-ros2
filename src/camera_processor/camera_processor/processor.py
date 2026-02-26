@@ -619,10 +619,10 @@ def assign_ids_greedy(det_features: list, det_boxes: list, person_db: PersonData
     return assigned
 
 
-def person_process_frame(frame):
+def person_process_frame(frame, model):
     global _FRAME_INDEX
     _FRAME_INDEX += 1
-    results = _POSE_MODEL(frame, verbose=False, device=_DEVICE, conf=DEFAULT_CONF)
+    results = model(frame, verbose=False, device=_DEVICE, conf=DEFAULT_CONF)
     annotated_frame = results[0].plot()
 
     persistent_ids = set()

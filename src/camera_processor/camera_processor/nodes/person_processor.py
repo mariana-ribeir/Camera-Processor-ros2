@@ -50,13 +50,7 @@ class PersonProcessor(Node):
         self.get_logger().info(f"Loading YOLO model from {model_path}...")
         self.model = YOLO(model_path)
 
-        self.declare_parameter('show_gui', False)
-        self.show_gui = self.get_parameter('show_gui').value
-
-        if self.show_gui:
-            cv2.namedWindow("Processed Frame", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("Processed Frame", 800, 600)
-
+        self.image_pub = self.create_publisher(Image, 'person/processed_image', 1)
 
         #subscribe the image topic 
         self.subscription = self.create_subscription(
@@ -86,27 +80,16 @@ class PersonProcessor(Node):
         count_msg.data = people_count  # set the Python int into the ROS message
         self.count_pub.publish(count_msg)
 
-        if self.show_gui:
-            cv2.imshow("Processed Frame", processed_frame)
-            key = cv2.waitKey(1) & 0xFF
-            if key in (ord('+'), ord('=')):
-                new_threshold = adjust_similarity_threshold(0.02)
-                self.get_logger().info(f"Similarity threshold increased to {new_threshold:.2f}")
-            elif key in (ord('-'), ord('_')):
-                new_threshold = adjust_similarity_threshold(-0.02)
-                self.get_logger().info(f"Similarity threshold decreased to {new_threshold:.2f}")
-            elif key in (ord('r'), ord('R')):
-                reset_person_database()
-                self.get_logger().info("Person database reset")
-
+        #publish the processed image for the Web Server ---
+        # This is what you will see in your Chrome browser
+        img_msg = self.bridge.cv2_to_imgmsg(processed_frame, encoding="bgr8")
+        self.image_pub.publish(img_msg)
 
 def main(args=None):
     rclpy.init(args=args)
     node = PersonProcessor()
     rclpy.spin(node)
     node.destroy_node()
-    if node.show_gui:
-        cv2.destroyAllWindows()
     rclpy.shutdown()
 
 if __name__ == '__main__':
