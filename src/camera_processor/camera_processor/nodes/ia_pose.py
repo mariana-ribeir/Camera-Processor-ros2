@@ -34,10 +34,10 @@ class IaPoseNode(Node):
         self.show_gui = self.get_parameter('show_gui').value
 
         if self.show_gui:
-            cv2.namedWindow("Real Frame", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("Real Frame", 800, 600)
-            cv2.namedWindow("Processed Frame", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("Processed Frame", 800, 600)
+            cv2.namedWindow("IA Real Frame", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("IA Real Frame", 800, 600)
+            cv2.namedWindow("IA Processed Frame", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("IA Processed Frame", 800, 600)
         
         # path setup for model
         pkg_share = get_package_share_directory('camera_processor')
@@ -65,8 +65,8 @@ class IaPoseNode(Node):
         processed_frame, detected_poses= pose_process_frame_model(frame, self.model, self.get_logger())
 
         if self.show_gui:
-            cv2.imshow("Real Frame", frame)
-            cv2.imshow("Processed Frame", processed_frame)
+            cv2.imshow("IA Real Frame", frame)
+            cv2.imshow("IA Processed Frame", processed_frame)
             cv2.waitKey(1)
 
         # 1. Publish the detection message (e.g., the combined pose string)
@@ -89,10 +89,11 @@ class IaPoseNode(Node):
 
 
         # Display the frames using the annotated_frame result
-        cv2.namedWindow("Processed Frame", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("Processed Frame", 800, 600)
-        cv2.imshow("Processed Frame", processed_frame)
-        cv2.waitKey(1) # Important for cv2.imshow to work
+        if self.show_gui:
+            cv2.namedWindow("IA Processed Frame", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("IA Processed Frame", 800, 600)
+            cv2.imshow("IA Processed Frame", processed_frame)
+            cv2.waitKey(1)
 
 
 def main(args=None):

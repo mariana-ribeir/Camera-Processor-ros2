@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  ros2_camera_processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: camera_processor_ws
+    volumes:
+      - .:/workspaces/ros2_ws
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    environment:
+      - DISPLAY=host.docker.internal:0
+      - QT_X11_NO_MITSHM=1
+      - OPENCV_VIDEOIO_PRIORITY_GSTREAMER=0
+    network_mode: host
+    stdin_open: true
+    tty: true
+    command: /bin/bash

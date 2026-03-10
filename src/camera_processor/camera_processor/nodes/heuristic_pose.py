@@ -1,11 +1,14 @@
 import rclpy
 import os
 import cv2
+import torch
 
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from cv_bridge import CvBridge
+from ament_index_python.packages import get_package_share_directory
+from ultralytics import YOLO
 
 from camera_processor.helpers.pose_heuristic import pose_process_frame_keypoints
 
@@ -25,17 +28,27 @@ Attributes:
 class HeuristicPoseNode(Node):
     def __init__(self):
         super().__init__('heuristic_pose')  # ROS node name
-        self.get_logger().info("Node 'heuristic_pose' started!")
 
         # parameter for GUI toggle
         self.declare_parameter('show_gui', False)
         self.show_gui = self.get_parameter('show_gui').value
 
         if self.show_gui:
-            cv2.namedWindow("Real Frame", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("Real Frame", 800, 600)
-            cv2.namedWindow("Processed Frame", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("Processed Frame", 800, 600)
+            cv2.namedWindow("Heuristic Real Frame", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("Heuristic Real Frame", 800, 600)
+            cv2.namedWindow("Heuristic Processed Frame", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("Heuristic Processed Frame", 800, 600)
+        
+        # path setup for model
+        pkg_share = get_package_share_directory('camera_processor')
+        model_path = os.path.join(pkg_share, 'models', 'yolov8n-pose.pt')
+
+        # load the model
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        try:
+            self.model = YOLO(model_path).to(device)
+        except Exception as e:
+            raise
 
         #subscribe the image topic 
         self.subscription = self.create_subscription(
@@ -52,11 +65,13 @@ class HeuristicPoseNode(Node):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
         # process the current frame in computer vision script
-        processed_frame, detected_poses  = pose_process_frame_keypoints(frame)
+        processed_frame, detected_poses  = pose_process_frame_keypoints(frame, self.model)
 
         if self.show_gui:
-            cv2.imshow("Real Frame", frame)
-            cv2.imshow("Processed Frame", processed_frame)
+            cv2.imshow("Heuristic Real Frame", frame)
+            cv2.namedWindow("Heuristic Processed Frame", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("Heuristic Processed Frame", 800, 600)
+            cv2.imshow("Heuristic Processed Frame", processed_frame)
             cv2.waitKey(1)
 
         # 1. Publish the detection message (e.g., the combined pose string)
@@ -68,21 +83,11 @@ class HeuristicPoseNode(Node):
             det_msg.data = f"Detected {len(detected_poses)} people. Poses: {pose_string}"
             self.detected_pub.publish(det_msg)
             
-            # Use ROS logging for status updates
-            self.get_logger().info(f"Published detection: {det_msg.data}")
         else:
             # Publish a message if no person is detected
             det_msg = String()
             det_msg.data = "No person detected."
             self.detected_pub.publish(det_msg)
-            self.get_logger().debug("No person detected.") # Use debug for frequent non-critical updates
-
-
-        # Display the frames using the annotated_frame result
-        cv2.namedWindow("Processed Frame", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("Processed Frame", 800, 600)
-        cv2.imshow("Processed Frame", processed_frame)
-        cv2.waitKey(1) # Important for cv2.imshow to work
 
 
 def main(args=None):

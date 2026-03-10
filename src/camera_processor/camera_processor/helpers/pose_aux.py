@@ -106,7 +106,7 @@ def classify_pose(keypoints):
     """
     conf_threshold = 0.5
     if keypoints.shape[0] < 17:
-        return "Desconhecida"
+        return "unknown"
     
     pts = keypoints[:, :2]
     vis = keypoints[:, 2] > conf_threshold
@@ -119,7 +119,7 @@ def classify_pose(keypoints):
     has_ankles = vis[15] and vis[16]
     
     if not (has_shoulders and has_hips):
-        return "Desconhecida"
+        return "unknown"
     
     # Calcular posições relativas
     shoulder_center = (pts[5] + pts[6]) / 2
@@ -160,13 +160,13 @@ def classify_pose(keypoints):
     
     # Classificação heurística melhorada
     if orientation == "horizontal":
-        pose = "Deitada"
+        pose = "lying"
     elif leg_angle == "dobrada":
-        pose = "Sentada"
+        pose = "sitting"
     elif leg_angle == "estendida":
-        pose = "De pe"
+        pose = "standing"
     else:
-        pose = "Desconhecida"
+        pose = "unknown"
     
     return pose
 
