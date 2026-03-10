@@ -1,7 +1,6 @@
 import rclpy
 import os
 import cv2
-import torch
 
 from rclpy.node import Node
 from sensor_msgs.msg import Image
@@ -44,11 +43,7 @@ class HeuristicPoseNode(Node):
         model_path = os.path.join(pkg_share, 'models', 'yolov8n-pose.pt')
 
         # load the model
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        try:
-            self.model = YOLO(model_path).to(device)
-        except Exception as e:
-            raise
+        self.model = YOLO(model_path)
 
         #subscribe the image topic 
         self.subscription = self.create_subscription(
