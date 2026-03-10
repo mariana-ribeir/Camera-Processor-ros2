@@ -74,7 +74,7 @@ class PersonProcessor(Node):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
         # process the current frame in computer vision script
-        processed_frame, people_detected, people_count  = person_process_frame(frame, self.model)
+        processed_frame, people_detected, people_count  = person_process_frame(frame)
 
         #publish detection message
         det_msg = Bool()

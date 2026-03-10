@@ -8,24 +8,9 @@ import time
 import numpy as np
 from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 
-def pose_process_frame_keypoints(frame):
-    # Variáveis para calcular FPS
-    fps_counter = 0
-    start_time = time.time()
-    fps = 0
-
-    pkg_share = get_package_share_directory('camera_processor')
-    model_dir = os.path.join(pkg_share, 'models')
-    model_path = os.path.join(model_dir, 'best.pt')
-
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    #print(f"A usar dispositivo: {device}")
-
-    #model = YOLO(model_path).to(device)
-    model = YOLO(model_path).to(device)
-
-    # Usar tracking em vez de deteção simples
-    results = model.track(frame, persist=True, device=device, verbose=False)
+def pose_process_frame_keypoints(frame, model):
+    # Usar detección simple em vez de tracking
+    results = model(frame, verbose=False)
         
     # Obter frame anotado
     annotated_frame = results[0].plot()
@@ -47,18 +32,6 @@ def pose_process_frame_keypoints(frame):
                 
             print(f"Pessoa {i+1}: {pose}")
         
-    # Calcular FPS
-    fps_counter += 1
-    elapsed_time = time.time() - start_time
-    if elapsed_time > 1.0:  # Atualizar a cada segundo
-        fps = fps_counter / elapsed_time
-        fps_counter = 0
-        start_time = time.time()
-        
-    # Mostrar FPS no frame
-    cv2.putText(annotated_frame, f'FPS: {fps:.2f}', (10, 30), 
-        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
     return annotated_frame, detected_poses
         
 
@@ -72,7 +45,7 @@ def classify_pose(keypoints):
     """
     conf_threshold = 0.5
     if keypoints.shape[0] < 17:
-        return "Desconhecida"
+        return "unknown"
     
     pts = keypoints[:, :2]
     vis = keypoints[:, 2] > conf_threshold
@@ -85,7 +58,7 @@ def classify_pose(keypoints):
     has_ankles = vis[15] and vis[16]
     
     if not (has_shoulders and has_hips):
-        return "Desconhecida"
+        return "unknown"
     
     # Calcular posições relativas
     shoulder_center = (pts[5] + pts[6]) / 2
@@ -126,13 +99,13 @@ def classify_pose(keypoints):
     
     # Classificação heurística melhorada
     if orientation == "horizontal":
-        pose = "Deitada"
+        pose = "lying"
     elif leg_angle == "dobrada":
-        pose = "Sentada"
+        pose = "sitting"
     elif leg_angle == "estendida":
-        pose = "De pe"
+        pose = "standing"
     else:
-        pose = "Desconhecida"
+        pose = "unknown"
     
     return pose
 

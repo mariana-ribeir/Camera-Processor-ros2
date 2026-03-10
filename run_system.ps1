@@ -16,50 +16,57 @@ if (-not $imageExists) {
     Write-Host "Imagem já existe. Pulando construção."
 }
 
-# Passo 2: Verificar e gerenciar o contenedor existente
+# Passo 2: Construir e executar o contenedor com Docker Compose
+Write-Host "Executando contenedor com Docker Compose..."
+docker-compose up -d
+
+# Esperar um pouco para que o contentor inicie
+Start-Sleep -Seconds 10
+
+# Passo 2.5: Reconstruir o workspace se houver mudanças no código
+Write-Host "Reconstruindo o workspace ROS2..."
+docker exec camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && cd /workspaces/ros2_ws && colcon build'
+
+# Esperar um pouco para que a construção termine
+Start-Sleep -Seconds 20
+
+# Verificar se o contenedor está rodando
 Write-Host "Verificando status do contenedor..."
-$containerExists = docker ps -a --filter name=camera_ws --format "{{.Names}}" | Select-String -Pattern "^camera_ws$"
-if ($containerExists) {
-    $containerStatus = docker ps --filter name=camera_ws --format "{{.Status}}"
-    if ($containerStatus -like "*Up*") {
-        Write-Host "Contenedor já está rodando. Pulando criação."
-    } else {
-        Write-Host "Contenedor existe mas parado. Iniciando..."
-        docker start camera_ws
-    }
-} else {
-    Write-Host "Contenedor não existe. Criando..."
-    # Passo 3: Executar contentor
-    Write-Host "Executando contentor..."
-    docker run -d --name camera_ws -e DISPLAY=host.docker.internal:0 -e QT_X11_NO_MITSHM=1 camera-processor:jazzy tail -f /dev/null
-
-    # Esperar um pouco para que o contentor inicie
-    Start-Sleep -Seconds 5
-
-    # Passo 3.6: Construir o workspace ROS2
-    Write-Host "Construindo o workspace ROS2..."
-    docker exec camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && cd /workspaces/ros2_ws && colcon build'
+$containerStatus = docker ps --filter name=camera_processor_ws --format "{{.Status}}"
+if ($containerStatus -notlike "*Up*") {
+    Write-Host "Erro: O contenedor não está rodando. Verificando logs..."
+    docker logs camera_processor_ws
+    Write-Host "Saindo do script."
+    exit 1
 }
 
-# Passo 4: Matar nodos existentes para evitar duplicados
+# Passo 2: Matar nodos existentes para evitar duplicados
 Write-Host "Matando nodos existentes..."
-docker exec camera_ws pkill -f "ros2 run" 2>$null
+docker exec camera_processor_ws pkill -f "ros2 run" 2>$null
 
-# Passo 5: Lançar camera_simulator
+# Passo 3: Lançar camera_simulator
 Write-Host "Lançando camera_simulator..."
-docker exec -d camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera camera_simulator'
+docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera camera_simulator'
 
-# Passo 6: Lançar color_processor
+# Passo 4: Lançar color_processor
 Write-Host "Lançando color_processor..."
-docker exec -d camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor color_processor'
+docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor color_processor'
 
-# Passo 7: Lançar person_processor
+# Passo 5: Lançar person_processor
 Write-Host "Lançando person_processor..."
-docker exec -d camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor person_processor'
+docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor person_processor'
+
+# Passo 6: Lançar heuristic_pose
+Write-Host "Lançando heuristic_pose..."
+docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor heuristic_pose'
+
+# Passo 7: Lançar ia_pose
+Write-Host "Lançando ia_pose..."
+docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor ia_pose'
 
 # Passo 8: Lançar pose_processor
 Write-Host "Lançando pose_processor..."
-docker exec -d camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor pose_processor'
+docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor pose_processor'
 
 # Esperar um pouco para que os nós iniciem
 Start-Sleep -Seconds 10
@@ -76,18 +83,26 @@ if ($containerStatus -notlike "*Up*") {
 
 # Passo 9: Listar tópicos
 Write-Host "Listando tópicos..."
-docker exec camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic list'
+docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic list'
 
 # Passo 10: Ouvir /person/count
 Write-Host "Ouvindo /person/count..."
-docker exec camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /person/count'
+docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /person/count'
 
 # Passo 11: Ouvir /person/detected
 Write-Host "Ouvindo /person/detected..."
-docker exec camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /person/detected'
+docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /person/detected'
 
-# Passo 12: Ouvir /pose/detected
+# Passo 12: Ouvir pose/ia/detected
+Write-Host "Ouvindo pose/ia/detected..."
+docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo pose/ia/detected'
+
+# Passo 13: Ouvir pose/heuristic/detected
+Write-Host "Ouvindo pose/heuristic/detected..."
+docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo pose/heuristic/detected'
+
+# Passo 14: Ouvir /pose/detected
 Write-Host "Ouvindo /pose/detected..."
-docker exec camera_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /pose/detected'
+docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /pose/detected'
 
 Write-Host "Script concluído. O sistema deve estar a correr."
