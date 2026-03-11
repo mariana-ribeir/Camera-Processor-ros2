@@ -10,6 +10,8 @@ RUN apt update && apt install -y \
     git wget curl \
     ros-jazzy-vision-opencv \
     ros-jazzy-rqt-image-view \
+    # try this
+    ros-jazzy-web-video-server \
     build-essential \
     libboost-all-dev \
     # GTK3 dependencies (works better in Docker than Qt6)

@@ -28,23 +28,6 @@ class HeuristicPoseNode(Node):
     def __init__(self):
         super().__init__('heuristic_pose')  # ROS node name
 
-        # parameter for GUI toggle
-        self.declare_parameter('show_gui', False)
-        self.show_gui = self.get_parameter('show_gui').value
-
-        if self.show_gui:
-            cv2.namedWindow("Heuristic Real Frame", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("Heuristic Real Frame", 800, 600)
-            cv2.namedWindow("Heuristic Processed Frame", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("Heuristic Processed Frame", 800, 600)
-        
-        # path setup for model
-        pkg_share = get_package_share_directory('camera_processor')
-        model_path = os.path.join(pkg_share, 'models', 'yolov8n-pose.pt')
-
-        # load the model
-        self.model = YOLO(model_path)
-
         #subscribe the image topic 
         self.subscription = self.create_subscription(
             Image,
@@ -52,6 +35,12 @@ class HeuristicPoseNode(Node):
             self.listener_callback,
             10)
         
+        self.declare_parameter('show_gui', False)
+        self.show_gui = self.get_parameter('show_gui').value
+
+        if self.show_gui:
+            self.image_pub = self.create_publisher(Image, 'pose_heuristic/processed_image', 1)
+
         #create an boolean topic to see if some person is present in frame or not 
         self.detected_pub = self.create_publisher(String, 'pose/heuristic/detected', 10)
         self.bridge = CvBridge()
@@ -61,13 +50,6 @@ class HeuristicPoseNode(Node):
 
         # process the current frame in computer vision script
         processed_frame, detected_poses  = pose_process_frame_keypoints(frame, self.model)
-
-        if self.show_gui:
-            cv2.imshow("Heuristic Real Frame", frame)
-            cv2.namedWindow("Heuristic Processed Frame", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("Heuristic Processed Frame", 800, 600)
-            cv2.imshow("Heuristic Processed Frame", processed_frame)
-            cv2.waitKey(1)
 
         # 1. Publish the detection message (e.g., the combined pose string)
         if detected_poses:
@@ -83,6 +65,13 @@ class HeuristicPoseNode(Node):
             det_msg = String()
             det_msg.data = "No person detected."
             self.detected_pub.publish(det_msg)
+            self.get_logger().debug("No person detected.") # Use debug for frequent non-critical updates
+
+
+        #publish the processed image for the Web Server
+        if self.show_gui:
+            img_msg = self.bridge.cv2_to_imgmsg(processed_frame, encoding="bgr8")
+            self.image_pub.publish(img_msg)
 
 
 def main(args=None):
@@ -90,8 +79,6 @@ def main(args=None):
     node = HeuristicPoseNode()
     rclpy.spin(node)
     node.destroy_node()
-    if node.show_gui:
-        cv2.destroyAllWindows()
     rclpy.shutdown()
 
 if __name__ == '__main__':

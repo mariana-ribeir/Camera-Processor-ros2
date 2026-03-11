@@ -1,13 +1,8 @@
 import rclpy
-import os
-import cv2
-
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool
 from cv_bridge import CvBridge
-from ament_index_python.packages import get_package_share_directory
-
 from camera_processor.processor import color_process_frame
 
 """
@@ -26,22 +21,11 @@ Attributes:
     bridge (CvBridge): Utility for converting between ROS Image messages and OpenCV images (numpy arrays).
     subscription (rclpy.Subscription): Subscription object for the input image topic.
     red_pub (rclpy.Publisher): Publisher for the boolean detection flag.
-    processed_pub (rclpy.Publisher): Publisher for the annotated image stream.
 """
 class ColorProcessor(Node):
     def __init__(self):
         super().__init__('color_processor')  # ROS node name
         self.get_logger().info("Node 'color_processor' started!")
-
-        # parameter for GUI toggle
-        self.declare_parameter('show_gui', False)
-        self.show_gui = self.get_parameter('show_gui').value
-
-        if self.show_gui:
-            cv2.namedWindow("Real Frame", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("Real Frame", 800, 600)
-            cv2.namedWindow("Processed Frame", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("Processed Frame", 800, 600)
 
         #subscribe the image topic 
         self.subscription = self.create_subscription(
@@ -53,17 +37,24 @@ class ColorProcessor(Node):
         self.red_pub = self.create_publisher(Bool, 'color/red_detected', 10)
         self.bridge = CvBridge()
 
+        #publish the processed image so we can see it remotely
+        self.declare_parameter('show_gui', False)
+        self.show_gui = self.get_parameter('show_gui').value
+
+        if self.show_gui:
+            self.image_pub = self.create_publisher(Image, 'color/processed_image', 1)
+
+
     def listener_callback(self, msg):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
         # process the current frame in computer vision script
         processed, red_detected = color_process_frame(frame)
 
-
-        if self.show_gui:
-            cv2.imshow("Real Frame", frame)
-            cv2.imshow("Processed Frame", processed)
-            cv2.waitKey(1)
+        # publish the processed image itself
+        if self.show_gui:   
+            img_msg = self.bridge.cv2_to_imgmsg(processed, encoding="bgr8")
+            self.image_pub.publish(img_msg)
 
         #publish detection message
         det_msg = Bool()
@@ -75,8 +66,6 @@ def main(args=None):
     node = ColorProcessor()
     rclpy.spin(node)
     node.destroy_node()
-    if node.show_gui:
-        cv2.destroyAllWindows()
     rclpy.shutdown()
 
 if __name__ == '__main__':

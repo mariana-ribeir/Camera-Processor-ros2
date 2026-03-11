@@ -28,16 +28,6 @@ class IaPoseNode(Node):
     def __init__(self):
         super().__init__('ia_pose')  # ROS node name
         self.get_logger().info("Node 'ia_pose' started!")
-
-        # parameter for GUI toggle
-        self.declare_parameter('show_gui', False)
-        self.show_gui = self.get_parameter('show_gui').value
-
-        if self.show_gui:
-            cv2.namedWindow("IA Real Frame", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("IA Real Frame", 800, 600)
-            cv2.namedWindow("IA Processed Frame", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("IA Processed Frame", 800, 600)
         
         # path setup for model
         pkg_share = get_package_share_directory('camera_processor')
@@ -46,6 +36,13 @@ class IaPoseNode(Node):
         # load the model
         self.get_logger().info(f"Loading YOLO model from {model_path}...")
         self.model = YOLO(model_path)
+
+        self.declare_parameter('show_gui', False)
+        self.show_gui = self.get_parameter('show_gui').value
+
+
+        if self.show_gui:
+            self.image_pub = self.create_publisher(Image, 'pose_ia/processed_image', 1)
 
         #subscribe the image topic 
         self.subscription = self.create_subscription(
@@ -63,11 +60,6 @@ class IaPoseNode(Node):
 
         # process the current frame in computer vision script
         processed_frame, detected_poses= pose_process_frame_model(frame, self.model, self.get_logger())
-
-        if self.show_gui:
-            cv2.imshow("IA Real Frame", frame)
-            cv2.imshow("IA Processed Frame", processed_frame)
-            cv2.waitKey(1)
 
         # 1. Publish the detection message (e.g., the combined pose string)
         if detected_poses:
@@ -87,13 +79,10 @@ class IaPoseNode(Node):
             self.detected_pub.publish(det_msg)
             self.get_logger().debug("No person detected.") # Use debug for frequent non-critical updates
 
-
-        # Display the frames using the annotated_frame result
+        #publish the processed image for the Web Server ---
         if self.show_gui:
-            cv2.namedWindow("IA Processed Frame", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("IA Processed Frame", 800, 600)
-            cv2.imshow("IA Processed Frame", processed_frame)
-            cv2.waitKey(1)
+            img_msg = self.bridge.cv2_to_imgmsg(processed_frame, encoding="bgr8")
+            self.image_pub.publish(img_msg)
 
 
 def main(args=None):
@@ -101,8 +90,6 @@ def main(args=None):
     node = IaPoseNode()
     rclpy.spin(node)
     node.destroy_node()
-    if node.show_gui:
-        cv2.destroyAllWindows()
     rclpy.shutdown()
 
 if __name__ == '__main__':
