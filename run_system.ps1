@@ -60,9 +60,9 @@ docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash &&
 Write-Host "Lançando heuristic_pose..."
 docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor heuristic_pose'
 
-# Passo 7: Lançar ia_pose
-Write-Host "Lançando ia_pose..."
-docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor ia_pose'
+# Passo 7: Lançar ai_pose
+Write-Host "Lançando ai_pose..."
+docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor ai_pose'
 
 # Passo 8: Lançar pose_processor
 Write-Host "Lançando pose_processor..."

@@ -1,13 +1,62 @@
 import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
-
-from ultralytics import YOLO
-import torch
 import cv2
-import time
 import numpy as np
-from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 
+#------------------ A I -----------------------------------------------------
+
+"""
+Processes a video frame using a pose detection model.
+
+    Args:
+        frame (np.ndarray): BGR image frame.
+        model: Training pose detection model.
+        logger: Logger to record detection information.
+
+    Returns:
+        annotated_frame (np.ndarray): Frame with drawn boxes and annotations.
+        detected_poses (List[str]): List of labels for poses detected in the frame.
+    """
+def pose_process_frame_model(frame, model, logger):
+
+    # Use simple detection instead of tracking (no lap required)
+    results = model(frame, verbose=False)  
+
+    logger.info(f"Results length: {len(results)}")
+    #logger.info(f"Results: {results}"
+
+    # Get annotated frame
+    annotated_frame = results[0].plot()
+
+    detected_poses = []
+    
+    # Process results
+    for r in results:
+        # Get labels from boxes
+        if r.boxes:
+            for box in r.boxes:
+                class_id = int(box.cls[0])
+                label = r.names[class_id]
+                detected_poses.append(label)
+        
+        # Create the visual frame with boxes drawn on it
+        annotated_frame = r.plot()
+
+    return annotated_frame, detected_poses
+
+#------------------ H E U R I S T I C -----------------------------------------------------
+
+"""
+ Processes a video frame to detect poses using keypoints and heuristics.
+
+    Args:
+        frame (np.ndarray): BGR image frame.
+        model: YOLOv8-compatible pose detection model.
+
+    Returns:
+        annotated_frame (np.ndarray): Frame with drawn keypoints and pose labels.
+        detected_poses (List[str]): List of heuristic classifications of detected poses.
+"""
 def pose_process_frame_keypoints(frame, model):
     # Usar detección simple em vez de tracking
     results = model(frame, verbose=False)
@@ -33,16 +82,22 @@ def pose_process_frame_keypoints(frame, model):
             print(f"Pessoa {i+1}: {pose}")
         
     return annotated_frame, detected_poses
-        
 
+        
+"""
+ Classifies a person's overall pose based on YOLOv8-pose keypoints.
+
+    Args:
+        keypoints (np.ndarray): Array of keypoints with format (17,3), where each row contains
+                                [x, y, confidence] for [nose, left_eye, right_eye, left_ear, right_ear,
+                                left_shoulder, right_shoulder, left_elbow, right_elbow, left_wrist,
+                                right_wrist, left_hip, right_hip, left_knee, right_knee, left_ankle, right_ankle].
+
+    Returns:
+        pose (str): Pose classification. Can be: standing, sitting, lying, unknown(insufficient information)
+"""
 
 def classify_pose(keypoints):
-    """
-    Classifica a pose geral baseada em keypoints do YOLOv8-pose.
-    Keypoints: [nose, left_eye, right_eye, left_ear, right_ear, left_shoulder, right_shoulder,
-                left_elbow, right_elbow, left_wrist, right_wrist, left_hip, right_hip,
-                left_knee, right_knee, left_ankle, right_ankle]
-    """
     conf_threshold = 0.5
     if keypoints.shape[0] < 17:
         return "unknown"

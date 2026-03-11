@@ -125,7 +125,7 @@ ros2 run rqt_image_view rqt_image_view
           v                           v                  v                       v
 +---------------------------+ +------------------+  +------------------+ +-------------------------+
 | Color Processor           | | Person Processor  | | IA Pose          | | Heuristic Pose          |
-| (color_processor)         | | (person_processor)| | (ia_pose)        | | (heuristic_pose)        |
+| (color_processor)         | | (person_processor)| | (ai_pose)        | | (heuristic_pose)        |
 +---------------------------+ +-------------------+ +------------------+ +-------------------------+
 | /color/frame_processed    | | person/detected   | | pose/ia/detected | | pose/heuristic/detected |
 | processed                 | | person/count      | |                  | | detected                |
@@ -147,8 +147,8 @@ ros2 run rqt_image_view rqt_image_view
 
 **Data Flow:**
 - `camera_simulator` publishes images to `/camera/image_raw`.
-- Four nodes subscribe to `/camera/image_raw`: `color_processor`, `person_processor`, `ia_pose`, `heuristic_pose`.
-- `ia_pose` and `heuristic_pose` publish results to `pose/ia/detected` and `pose/heuristic/detected`, which converge in `pose_processor`.
+- Four nodes subscribe to `/camera/image_raw`: `color_processor`, `person_processor`, `ai_pose`, `heuristic_pose`.
+- `ai_pose` and `heuristic_pose` publish results to `pose/ia/detected` and `pose/heuristic/detected`, which converge in `pose_processor`.
 - `pose_processor` combines the results and publishes to `pose/detected`.
 - `color_processor` and `person_processor` publish to their own topics.
 
@@ -158,19 +158,19 @@ ros2 run rqt_image_view rqt_image_view
 | `camera-processor`          | `color_processor` | Processes frames to detect colors and publish results   |
 |                             | `person_processor`| Processes frames to detect people and publish results   |
 |                             | `heuristic_pose`  | Processes frames to detect poses using heuristics and publish results |
-|                             | `ia_pose`         | Processes frames to detect poses using AI and publish results |
+|                             | `ai_pose`         | Processes frames to detect poses using AI and publish results |
 |                             | `pose_processor`  | Combines AI and heuristic detections to publish final results |
 
 ### Relationship between Pose Nodes
 
-The `heuristic_pose` and `ia_pose` nodes subscribe directly to the `/camera/image_raw` topic and process frames independently:
+The `heuristic_pose` and `ai_pose` nodes subscribe directly to the `/camera/image_raw` topic and process frames independently:
 
 - `heuristic_pose`: Uses heuristic algorithms to detect human poses.
-- `ia_pose`: Uses an AI model (YOLO) to detect poses.
+- `ai_pose`: Uses an AI model (YOLO) to detect poses.
 
 Each publishes their results to their respective topics (`pose/heuristic/detected` and `pose/ia/detected`).
 
-The `pose_processor` node acts as an aggregator: it subscribes to the topics from `heuristic_pose` and `ia_pose`, combines or compares the detections, and publishes the final result to `pose/detected`. It does not receive images directly; it only processes the results already calculated by the other nodes.
+The `pose_processor` node acts as an aggregator: it subscribes to the topics from `heuristic_pose` and `ai_pose`, combines or compares the detections, and publishes the final result to `pose/detected`. It does not receive images directly; it only processes the results already calculated by the other nodes.
 
 
 

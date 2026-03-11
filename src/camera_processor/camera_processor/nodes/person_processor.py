@@ -26,21 +26,31 @@ Also allows runtime adjustment of the similarity threshold via keyboard input.
 Subscribes:
     /camera/image_raw (sensor_msgs/Image): The raw video stream input.
 
-Publishes:
-    person/detected (std_msgs/Bool): Boolean flag indicating if some person was detected.
-    person/count (std_msgs/Int32): Integer number indicating the number of persons was detected.
+Publishers:
+    person/detected (std_msgs/Bool): Indicates whether at least one person is detected.
+    person/count (std_msgs/Int32): Number of detected persons in the current frame.
+    person/processed_image (sensor_msgs/Image): Annotated image with detections (only if 'show_gui' is enabled).
+
+Parameters:
+    show_gui (bool): If True, publishes the processed image with detections.
 
 Attributes:
-    subscription (rclpy.Subscription): Subscriber to the '/camera/image_raw' topic.
-    detected_pub (rclpy.Publisher): Publisher for the 'person/detected' (Bool) topic.
-    count_pub (rclpy.Publisher): Publisher for the 'person/count' (Int32) topic.
-    bridge (CvBridge): Converter between OpenCV images and ROS2 Image messages.
+    subscription (rclpy.Subscription): Subscriber to '/camera/image_raw'.
+    detected_pub (rclpy.Publisher): Publisher for the 'person/detected' topic.
+    count_pub (rclpy.Publisher): Publisher for the 'person/count' topic.
+    image_pub (rclpy.Publisher): Publisher for processed images (if enabled).
+    bridge (CvBridge): Converter between ROS Image messages and OpenCV images.
+    model (YOLO): YOLOv8 pose model used for person detection.
 """
 class PersonProcessor(Node):
     def __init__(self):
         super().__init__('person_processor')  # ROS node name
         self.get_logger().info("Node 'person_processor' started!")
         self.get_logger().info(f"Similarity threshold start value: {get_similarity_threshold():.2f}")
+
+        #publish the processed image so we can see it remotely
+        self.declare_parameter('show_gui', False)
+        self.show_gui = self.get_parameter('show_gui').value
 
         # path setup for model
         pkg_share = get_package_share_directory('camera_processor')
@@ -49,9 +59,6 @@ class PersonProcessor(Node):
         # load the model
         self.get_logger().info(f"Loading YOLO model from {model_path}...")
         self.model = YOLO(model_path)
-
-        self.declare_parameter('show_gui', False)
-        self.show_gui = self.get_parameter('show_gui').value
 
         if self.show_gui:
             self.image_pub = self.create_publisher(Image, 'person/processed_image', 1)
@@ -72,7 +79,7 @@ class PersonProcessor(Node):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
         # process the current frame in computer vision script
-        processed_frame, people_detected, people_count  = person_process_frame(frame)
+        processed_frame, people_detected, people_count  = person_process_frame(frame, self.model)
 
         #publish detection message
         det_msg = Bool()

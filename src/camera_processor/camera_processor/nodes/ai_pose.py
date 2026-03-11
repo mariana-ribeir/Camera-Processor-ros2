@@ -1,33 +1,45 @@
 import rclpy
 import os
-import cv2
-
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from cv_bridge import CvBridge
 from ament_index_python.packages import get_package_share_directory
 from ultralytics import YOLO
-
 from camera_processor.helpers.pose_ai import pose_process_frame_model
 
 """
-ROS2 Node for real-time human pose detection.
+ROS2 node for real-time human pose detection using an AI model.
 
-Subscribes to raw camera images, processes them using computer vision
-to detect people, and the pose of them.
+This node subscribes to raw camera images, processes each frame using a
+YOLO-based pose detection model, and publishes the detected poses along
+with an optional annotated image.
 
-Subscribes:
-    /camera/image_raw (sensor_msgs/Image): The raw video stream input.
+Subscriptions:
+    /camera/image_raw (sensor_msgs/Image): Raw camera image stream.
+
+Publishers:
+    pose/ia/detected (std_msgs/String): Text description of detected people and their poses.
+    pose_ia/processed_image (sensor_msgs/Image): Annotated image with pose detections (published only if 'show_gui' is enabled).
+
+Parameters:
+    show_gui (bool): If True, publishes the processed image for visualization.
 
 Attributes:
-    subscription (rclpy.Subscription): Subscriber to the '/camera/image_raw' topic.
-    bridge (CvBridge): Converter between OpenCV images and ROS2 Image messages.
+    subscription (rclpy.Subscription): Subscriber to the camera image topic.
+    detected_pub (rclpy.Publisher): Publisher for the pose detection results.
+    image_pub (rclpy.Publisher): Publisher for the processed image when visualization is enabled.
+    bridge (CvBridge): Utility for converting between ROS Image messages and OpenCV images.
+    model (YOLO): Loaded YOLO pose detection model used for inference.
 """
 class IaPoseNode(Node):
     def __init__(self):
-        super().__init__('ia_pose')  # ROS node name
-        self.get_logger().info("Node 'ia_pose' started!")
+        super().__init__('ai_pose')  # ROS node name
+        self.get_logger().info("Node 'ai_pose' started!")
+
+        #publish the processed image so we can see it remotely
+        self.declare_parameter('show_gui', False)
+        self.show_gui = self.get_parameter('show_gui').value
         
         # path setup for model
         pkg_share = get_package_share_directory('camera_processor')
@@ -36,10 +48,6 @@ class IaPoseNode(Node):
         # load the model
         self.get_logger().info(f"Loading YOLO model from {model_path}...")
         self.model = YOLO(model_path)
-
-        self.declare_parameter('show_gui', False)
-        self.show_gui = self.get_parameter('show_gui').value
-
 
         if self.show_gui:
             self.image_pub = self.create_publisher(Image, 'pose_ia/processed_image', 1)

@@ -28,7 +28,7 @@ def generate_launch_description():
 
         Node(
             package='camera_processor',
-            executable='ia_pose',
+            executable='ai_pose',
             parameters=[{'show_gui': True}],
             output='screen'
         ),

@@ -21,11 +21,16 @@ Attributes:
     bridge (CvBridge): Utility for converting between ROS Image messages and OpenCV images (numpy arrays).
     subscription (rclpy.Subscription): Subscription object for the input image topic.
     red_pub (rclpy.Publisher): Publisher for the boolean detection flag.
+    image_pub (rclpy.Publisher): Publisher for processed images when visualization is enabled.
 """
 class ColorProcessor(Node):
     def __init__(self):
         super().__init__('color_processor')  # ROS node name
         self.get_logger().info("Node 'color_processor' started!")
+
+        #publish the processed image so we can see it remotely
+        self.declare_parameter('show_gui', False)
+        self.show_gui = self.get_parameter('show_gui').value
 
         #subscribe the image topic 
         self.subscription = self.create_subscription(
@@ -36,10 +41,6 @@ class ColorProcessor(Node):
         #create an boolean topic to see if red is present in frame or not 
         self.red_pub = self.create_publisher(Bool, 'color/red_detected', 10)
         self.bridge = CvBridge()
-
-        #publish the processed image so we can see it remotely
-        self.declare_parameter('show_gui', False)
-        self.show_gui = self.get_parameter('show_gui').value
 
         if self.show_gui:
             self.image_pub = self.create_publisher(Image, 'color/processed_image', 1)

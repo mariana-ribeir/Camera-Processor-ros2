@@ -38,7 +38,7 @@ setup(
             'color_processor = camera_processor.nodes.color_processor:main',
             'person_processor = camera_processor.nodes.person_processor:main',
             'heuristic_pose = camera_processor.nodes.heuristic_pose:main',
-            'ia_pose = camera_processor.nodes.ia_pose:main',
+            'ai_pose = camera_processor.nodes.ai_pose:main',
             'pose_processor = camera_processor.nodes.pose_processor:main'
         ],
     },

@@ -1,32 +1,44 @@
 import rclpy
-import os
-import cv2
-
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from cv_bridge import CvBridge
-from ament_index_python.packages import get_package_share_directory
-from ultralytics import YOLO
 
 from camera_processor.helpers.pose_heuristic import pose_process_frame_keypoints
 
 """
-ROS2 Node for real-time human pose detection.
+ROS2 Node for real-time human detection and counting.
 
-Subscribes to raw camera images, processes them using computer vision
-to detect people, and the pose of them.
+This node subscribes to raw camera images, processes each frame using a YOLOv8
+model to detect people, and publishes both the detection status and the number
+of detected persons. Optionally, it can also publish an annotated image for
+visualization.
 
-Subscribes:
-    /camera/image_raw (sensor_msgs/Image): The raw video stream input.
+Subscriptions:
+    /camera/image_raw (sensor_msgs/Image): Raw camera video stream.
+
+Publishers:
+    person/detected (std_msgs/Bool): Indicates whether at least one person is detected.
+    person/count (std_msgs/Int32): Number of detected persons in the current frame.
+    person/processed_image (sensor_msgs/Image): Annotated image with detections (only if 'show_gui' is enabled).
+
+Parameters:
+    show_gui (bool): If True, publishes the processed image with detections.
 
 Attributes:
-    subscription (rclpy.Subscription): Subscriber to the '/camera/image_raw' topic.
-    bridge (CvBridge): Converter between OpenCV images and ROS2 Image messages.
+    subscription (rclpy.Subscription): Subscriber to '/camera/image_raw'.
+    detected_pub (rclpy.Publisher): Publisher for the 'person/detected' topic.
+    count_pub (rclpy.Publisher): Publisher for the 'person/count' topic.
+    image_pub (rclpy.Publisher): Publisher for processed images (if enabled).
+    bridge (CvBridge): Converter between ROS Image messages and OpenCV images.
+    model (YOLO): YOLOv8 pose model used for person detection.
 """
 class HeuristicPoseNode(Node):
     def __init__(self):
         super().__init__('heuristic_pose')  # ROS node name
+
+        self.declare_parameter('show_gui', False)
+        self.show_gui = self.get_parameter('show_gui').value
 
         #subscribe the image topic 
         self.subscription = self.create_subscription(
@@ -34,9 +46,6 @@ class HeuristicPoseNode(Node):
             '/camera/image_raw',
             self.listener_callback,
             10)
-        
-        self.declare_parameter('show_gui', False)
-        self.show_gui = self.get_parameter('show_gui').value
 
         if self.show_gui:
             self.image_pub = self.create_publisher(Image, 'pose_heuristic/processed_image', 1)

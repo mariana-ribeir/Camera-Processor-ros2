@@ -1,18 +1,29 @@
 import rclpy
-import os
-import cv2
-
 from rclpy.node import Node
-from sensor_msgs.msg import Image
 from std_msgs.msg import String
-from cv_bridge import CvBridge
-from ament_index_python.packages import get_package_share_directory
-from ultralytics import YOLO
 
-# Importing both processing helpers
-from camera_processor.helpers.pose_ai import pose_process_frame_model
-from camera_processor.helpers.pose_heuristic import pose_process_frame_keypoints
+"""
+ROS2 node responsible for combining pose detection results from two sources:
+an AI-based model and a heuristic-based algorithm.
 
+The node subscribes to pose detection messages from both systems, compares
+their outputs, and publishes a final pose detection result with an estimated
+certainty level.
+
+Subscriptions:
+    /pose/ia/detected (std_msgs/String): Pose detection results produced by the AI-based pose detection node.
+    /pose/heuristic/detected (std_msgs/String): Pose detection results produced by the heuristic pose detection node.
+
+Publishers:
+    pose/detected (std_msgs/String): Final fused pose detection result including certainty level and source agreement.
+
+Attributes:
+    latest_ai_pose (str | None): Most recent pose detection result received from the AI node.
+    latest_heuristic_pose (str | None):  Most recent pose detection result received from the heuristic node.
+    ai_sub (rclpy.Subscription): Subscriber for the AI pose detection topic.
+    heuristic_sub (rclpy.Subscription): Subscriber for the heuristic pose detection topic.
+    detected_pub (rclpy.Publisher): Publisher for the final fused pose detection result.
+"""
 class PoseProcessorNode(Node):
     def __init__(self):
         super().__init__('pose_processor')
@@ -35,14 +46,32 @@ class PoseProcessorNode(Node):
         # Timer to check and compare at 10Hz (0.1s)
         self.create_timer(0.1, self.compare_and_publish)
 
+    
     def ai_callback(self, msg):
+        """
+        Callback executed when a new AI pose detection message is received.
+
+        Args:
+            msg (std_msgs.msg.String): Message containing AI pose detection results.
+        """
         # Logic to extract the pose list from the string "Poses: standing, sitting"
         self.latest_ai_pose = msg.data
-        
+    
+
     def heuristic_callback(self, msg):
+        """
+        Callback executed when a new heuristic pose detection message is received.
+
+        Args:
+            msg (std_msgs.msg.String): Message containing heuristic pose detection results.
+        """
         self.latest_heuristic_pose = msg.data
 
     def compare_and_publish(self):
+        """
+        Periodic timer callback that compares the latest AI and heuristic pose
+        detections and publishes a fused result with a certainty estimate.
+        """
         # If we don't even have AI data, we can't do much.
         if self.latest_ai_pose is None:
             self.get_logger().debug("Waiting for AI data...")
