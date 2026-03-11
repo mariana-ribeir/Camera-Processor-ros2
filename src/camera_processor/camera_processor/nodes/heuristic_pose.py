@@ -6,6 +6,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from cv_bridge import CvBridge
+from ament_index_python.packages import get_package_share_directory
+from ultralytics import YOLO
 
 from camera_processor.helpers.pose_heuristic import pose_process_frame_keypoints
 
@@ -25,7 +27,6 @@ Attributes:
 class HeuristicPoseNode(Node):
     def __init__(self):
         super().__init__('heuristic_pose')  # ROS node name
-        self.get_logger().info("Node 'heuristic_pose' started!")
 
         #subscribe the image topic 
         self.subscription = self.create_subscription(
@@ -48,7 +49,7 @@ class HeuristicPoseNode(Node):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
         # process the current frame in computer vision script
-        processed_frame, detected_poses  = pose_process_frame_keypoints(frame)
+        processed_frame, detected_poses  = pose_process_frame_keypoints(frame, self.model)
 
         # 1. Publish the detection message (e.g., the combined pose string)
         if detected_poses:
@@ -59,8 +60,6 @@ class HeuristicPoseNode(Node):
             det_msg.data = f"Detected {len(detected_poses)} people. Poses: {pose_string}"
             self.detected_pub.publish(det_msg)
             
-            # Use ROS logging for status updates
-            self.get_logger().info(f"Published detection: {det_msg.data}")
         else:
             # Publish a message if no person is detected
             det_msg = String()
