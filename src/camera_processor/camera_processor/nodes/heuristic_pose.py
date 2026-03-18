@@ -1,10 +1,15 @@
+import os
+
+from ultralytics import YOLO
+
+from ament_index_python import get_package_share_directory
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from cv_bridge import CvBridge
 
-from camera_processor.helpers.pose_heuristic import pose_process_frame_keypoints
+from camera_processor.helpers.pose_detector import pose_process_frame_keypoints
 
 """
 ROS2 Node for real-time human detection and counting.
@@ -39,6 +44,13 @@ class HeuristicPoseNode(Node):
 
         self.declare_parameter('show_gui', False)
         self.show_gui = self.get_parameter('show_gui').value
+
+        pkg_share = get_package_share_directory('camera_processor')
+        model_path = os.path.join(pkg_share, 'models', 'yolov8n-pose.pt')
+
+        # load the model
+        self.model = YOLO(model_path)
+        self.get_logger().info(f"Loading YOLO model from {model_path}...")
 
         #subscribe the image topic 
         self.subscription = self.create_subscription(

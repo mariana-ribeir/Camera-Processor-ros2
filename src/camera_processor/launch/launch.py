@@ -9,14 +9,6 @@ def generate_launch_description():
             parameters=[{'show_gui': True}],
             name='camera_simulator'
         ),
-
-        Node(
-            package='camera_processor',
-            executable='color_processor',
-            name='color_processor',
-            parameters=[{'show_gui': True}],
-            output='screen'
-        ),
         
         Node(
             package='camera_processor',

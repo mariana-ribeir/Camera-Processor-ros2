@@ -5,7 +5,7 @@ from typing import Optional
 import scipy.optimize
 from sklearn.metrics.pairwise import cosine_similarity
 
-from helpers.person_db import PersonDatabase
+from camera_processor.helpers.person_db import PersonDatabase
 _PERSON_DB = PersonDatabase()
 
 def reset_person_database() -> None:
@@ -56,9 +56,10 @@ def person_process_frame(frame, model):
     _FRAME_INDEX += 1
     results = model(frame, verbose=False, conf=DEFAULT_CONF)
     annotated_frame = results[0].plot()
-
     persistent_ids = set()
     raw_people_count = 0
+    detections = []   # NEW
+
     if results[0].boxes is not None and results[0].keypoints is not None:
         boxes = results[0].boxes
         keypoints_tensor = results[0].keypoints.data
@@ -68,17 +69,14 @@ def person_process_frame(frame, model):
         for idx, box in enumerate(boxes):
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             kpts_array = keypoints_tensor[idx].cpu().numpy()
-            # Extrair features: ReID se disponível, senão skeleton
+            # Extract features
             if _USE_REID:
-                # Crop da pessoa para ReID
                 crop = frame[y1:y2, x1:x2]
                 feat = compute_reid_embedding(crop)
             else:
                 feat = extract_skeleton_features(kpts_array)
             det_features.append(feat)
             det_boxes.append((x1, y1, x2, y2))
-
-        # Atribuir IDs usando greedy
         similarity_threshold = _REID_THRESHOLD if _USE_REID else _SIMILARITY_THRESHOLD
         assigned_ids = assign_ids_greedy(
             det_features=det_features,
@@ -92,26 +90,58 @@ def person_process_frame(frame, model):
             reappear_threshold=_REAPPEAR_THRESHOLD,
             use_iou=True
         )
-
         for idx, pid in enumerate(assigned_ids):
+            x1, y1, x2, y2 = det_boxes[idx]
+            w = x2 - x1
+            h = y2 - y1
             if pid is not None:
                 persistent_ids.add(pid)
             display_id = pid if pid is not None else idx
-            x1, y1, _, _ = det_boxes[idx]
+            # NEW: build detection
+            conf = float(boxes[idx].conf.cpu().numpy()[0])
+            detections.append((display_id, x1, y1, w, h, conf))
             label = f'ID: {display_id}'
-            cv2.putText(annotated_frame, label, (x1, y1 - 25), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 0), 4)
-            cv2.putText(annotated_frame, label, (x1, y1 - 25), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 2)
-
-    cv2.putText(annotated_frame, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-    cv2.putText(annotated_frame, f'Unique IDs: {len(_PERSON_DB)}', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+            cv2.putText(
+                annotated_frame,
+                label,
+                (x1, y1 - 25),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.5,
+                (0, 0, 0),
+                4
+            )
+            cv2.putText(
+                annotated_frame,
+                label,
+                (x1, y1 - 25),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.5,
+                (255, 255, 255),
+                2
+            )
+    cv2.putText(
+        annotated_frame,
+        f'Unique IDs: {len(_PERSON_DB)}',
+        (10, 60),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (255, 255, 0),
+        2
+    )
     threshold_type = 'ReID' if _USE_REID else 'Skeleton'
     threshold_label = _REID_THRESHOLD if _USE_REID else _SIMILARITY_THRESHOLD
-    cv2.putText(annotated_frame, f'{threshold_type} Threshold: {threshold_label:.2f}', (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
-
+    cv2.putText(
+        annotated_frame,
+        f'{threshold_type} Threshold: {threshold_label:.2f}',
+        (10, 90),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (0, 0, 0),
+        2
+    )
     people_count = max(raw_people_count, len(persistent_ids))
     people_detected = people_count > 0
-
-    return annotated_frame, people_detected, people_count
+    return annotated_frame, people_detected, people_count, detections
 
 
 def extract_skeleton_features(keypoints: np.ndarray):

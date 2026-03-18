@@ -22,13 +22,14 @@ class CameraSimulator(Node):
     def __init__(self, video_path):
         super().__init__('camera_simulator')
         self.get_logger().info("Node 'camera_simulator' started!")
-        self.publisher_ = self.create_publisher(Image, '/camera/image_raw', 10)
-        self.timer = self.create_timer(0.03, self.timer_callback)  # ~30 FPS
+        self.publisher_ = self.create_publisher(Image, '/camera/image_raw', 1)
+        self.timer = self.create_timer(0.1, self.timer_callback)  # ~10 FPS, publish every 0.1s
         self.bridge = CvBridge()
 
         # Open video (0 = webcam, ou "video.mp4")
         #self.cap = cv2.VideoCapture(0)
         self.cap = cv2.VideoCapture(video_path)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
         if not self.cap.isOpened():
             self.get_logger().error(f"Error open the video(simulation of camera): {video_path}")
@@ -43,6 +44,8 @@ class CameraSimulator(Node):
 
         # Publish camera image
         msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = "camera"
         self.publisher_.publish(msg)
         #elf.get_logger().info("Publicando frame...")
 

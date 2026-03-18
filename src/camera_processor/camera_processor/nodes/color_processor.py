@@ -3,7 +3,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool
 from cv_bridge import CvBridge
-from camera_processor.processor import color_process_frame
+from camera_processor.helpers.color_detector import color_process_frame
 
 """
 ROS 2 node responsible for receiving image streams, delegating color 

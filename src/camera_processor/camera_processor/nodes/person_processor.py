@@ -1,15 +1,14 @@
 import rclpy
 import os
-import cv2
-
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool, Int32
 from cv_bridge import CvBridge
 from ament_index_python.packages import get_package_share_directory
 from ultralytics import YOLO
+from camera_interfaces.msg import PersonDetection, PersonDetectionArray
 
-from camera_processor.processor import (
+from camera_processor.helpers.person_detector import (
     person_process_frame,
     adjust_similarity_threshold,
     reset_person_database,
@@ -44,7 +43,7 @@ Attributes:
 """
 class PersonProcessor(Node):
     def __init__(self):
-        super().__init__('person_processor')  # ROS node name
+        super().__init__('person_processor')  
         self.get_logger().info("Node 'person_processor' started!")
         self.get_logger().info(f"Similarity threshold start value: {get_similarity_threshold():.2f}")
 
@@ -60,36 +59,65 @@ class PersonProcessor(Node):
         self.get_logger().info(f"Loading YOLO model from {model_path}...")
         self.model = YOLO(model_path)
 
+        #publishers for detection and count
+        self.detected_pub = self.create_publisher(Bool, 'person/detected', 10)
+        self.count_pub = self.create_publisher(Int32, 'person/count', 10)
+        
+        #publish detections (bbox + id)
+        self.detections_pub = self.create_publisher(
+            PersonDetectionArray,
+            'person/detections',
+            10
+        )
+
         if self.show_gui:
             self.image_pub = self.create_publisher(Image, 'person/processed_image', 1)
-        
+
         #subscribe the image topic 
         self.subscription = self.create_subscription(
             Image,
             '/camera/image_raw',
             self.listener_callback,
-            10)
-        #create an boolean topic to see if some person is present in frame or not 
-        self.detected_pub = self.create_publisher(Bool, 'person/detected', 10)
-        #create an iny topic to count how many person are present in frame
-        self.count_pub = self.create_publisher(Int32, 'person/count', 10)
+            1)
+       
         self.bridge = CvBridge()
+
 
     def listener_callback(self, msg):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
         # process the current frame in computer vision script
-        processed_frame, people_detected, people_count  = person_process_frame(frame, self.model)
+        processed_frame, people_detected, people_count, detections = person_process_frame(frame, self.model)
 
         #publish detection message
         det_msg = Bool()
         det_msg.data = people_detected
         self.detected_pub.publish(det_msg)
 
-        # Publish count message
+        # publish count message
         count_msg = Int32()
         count_msg.data = people_count  # set the Python int into the ROS message
         self.count_pub.publish(count_msg)
+
+        # publish bounding boxes
+        detections_msg = PersonDetectionArray()
+        detections_msg.header = msg.header
+
+        for i, det in enumerate(detections):
+
+            person_id, x, y, w, h, conf = det
+
+            msg = PersonDetection()
+            msg.id = person_id
+            msg.x = int(x)
+            msg.y = int(y)
+            msg.width = int(w)
+            msg.height = int(h)
+            msg.confidence = float(conf)
+
+            detections_msg.detections.append(msg)
+
+        self.detections_pub.publish(detections_msg)
 
         #publish the processed image for the Web Server 
         if self.show_gui:
