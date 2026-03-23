@@ -6,7 +6,7 @@ def generate_launch_description():
         Node(
             package='camera',
             executable='camera_simulator',
-            parameters=[{'show_gui': True}],
+            parameters=[{'show_gui': False}],
             name='camera_simulator'
         ),
         

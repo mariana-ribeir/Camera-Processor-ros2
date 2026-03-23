@@ -1,17 +1,17 @@
 import rclpy
 import os
+import torch
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool, Int32
 from cv_bridge import CvBridge
 from ament_index_python.packages import get_package_share_directory
+from rclpy.executors import MultiThreadedExecutor
 from ultralytics import YOLO
 from camera_interfaces.msg import PersonDetection, PersonDetectionArray
 
 from camera_processor.helpers.person_detector import (
     person_process_frame,
-    adjust_similarity_threshold,
-    reset_person_database,
     get_similarity_threshold,
 )
 
@@ -36,16 +36,18 @@ Parameters:
 Attributes:
     subscription (rclpy.Subscription): Subscriber to '/camera/image_raw'.
     detected_pub (rclpy.Publisher): Publisher for the 'person/detected' topic.
-    count_pub (rclpy.Publisher): Publisher for the 'person/count' topic.
     image_pub (rclpy.Publisher): Publisher for processed images (if enabled).
     bridge (CvBridge): Converter between ROS Image messages and OpenCV images.
     model (YOLO): YOLOv8 pose model used for person detection.
 """
-class PersonProcessor(Node):
+class PersonProcessorNode(Node):
     def __init__(self):
         super().__init__('person_processor')  
         self.get_logger().info("Node 'person_processor' started!")
-        self.get_logger().info(f"Similarity threshold start value: {get_similarity_threshold():.2f}")
+
+        self.bridge = CvBridge()
+        self.last_frame = None
+        self.processing = False
 
         #publish the processed image so we can see it remotely
         self.declare_parameter('show_gui', False)
@@ -61,8 +63,6 @@ class PersonProcessor(Node):
 
         #publishers for detection and count
         self.detected_pub = self.create_publisher(Bool, 'person/detected', 10)
-        self.count_pub = self.create_publisher(Int32, 'person/count', 10)
-        
         #publish detections (bbox + id)
         self.detections_pub = self.create_publisher(
             PersonDetectionArray,
@@ -73,63 +73,71 @@ class PersonProcessor(Node):
         if self.show_gui:
             self.image_pub = self.create_publisher(Image, 'person/processed_image', 1)
 
-        #subscribe the image topic 
+        #subscribe the image topic  
         self.subscription = self.create_subscription(
             Image,
             '/camera/image_raw',
-            self.listener_callback,
+            self.image_callback,
             1)
-       
-        self.bridge = CvBridge()
+               
+        self.create_timer(0.1, self.process)
+        
 
+    def image_callback(self, msg):
+        self.last_frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
-    def listener_callback(self, msg):
-        frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+    def process(self):
+        if self.processing:
+            return
 
-        # process the current frame in computer vision script
-        processed_frame, people_detected, people_count, detections = person_process_frame(frame, self.model)
+        if self.last_frame is None:
+            return
 
-        #publish detection message
-        det_msg = Bool()
-        det_msg.data = people_detected
-        self.detected_pub.publish(det_msg)
+        self.processing = True
 
-        # publish count message
-        count_msg = Int32()
-        count_msg.data = people_count  # set the Python int into the ROS message
-        self.count_pub.publish(count_msg)
+        frame = self.last_frame.copy()
 
-        # publish bounding boxes
-        detections_msg = PersonDetectionArray()
-        detections_msg.header = msg.header
+        with torch.inference_mode():
+            processed_frame, people_detected, count, detections = person_process_frame(
+                frame,
+                self.model
+            )
 
-        for i, det in enumerate(detections):
+        msg = PersonDetectionArray()
 
-            person_id, x, y, w, h, conf = det
+        for det in detections:
+            det_msg = PersonDetection()
+            pid, x, y, w, h, confidence = det
 
-            msg = PersonDetection()
-            msg.id = person_id
-            msg.x = int(x)
-            msg.y = int(y)
-            msg.width = int(w)
-            msg.height = int(h)
-            msg.confidence = float(conf)
+            det_msg.id = pid
+            det_msg.x = x
+            det_msg.y = y
+            det_msg.width = w
+            det_msg.height = h
+            msg.detections.append(det_msg)
 
-            detections_msg.detections.append(msg)
-
-        self.detections_pub.publish(detections_msg)
+        self.detections_pub.publish(msg)
 
         #publish the processed image for the Web Server 
         if self.show_gui:
             img_msg = self.bridge.cv2_to_imgmsg(processed_frame, encoding="bgr8")
             self.image_pub.publish(img_msg)
+        
+        self.processing = False
 
 def main(args=None):
     rclpy.init(args=args)
-    node = PersonProcessor()
-    rclpy.spin(node)
+
+    node = PersonProcessorNode()
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        pass
+
     node.destroy_node()
-    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

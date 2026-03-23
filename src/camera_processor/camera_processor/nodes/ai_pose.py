@@ -1,6 +1,9 @@
+import torch
+
 import rclpy
 import os
 from rclpy.node import Node
+from rclpy.executors import MultiThreadedExecutor
 from sensor_msgs import msg
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
@@ -8,7 +11,7 @@ from cv_bridge import CvBridge
 from ament_index_python.packages import get_package_share_directory
 from ultralytics import YOLO
 from camera_processor.helpers.pose_detector import pose_process_frame_model
-from camera_interfaces.msg import PersonDetection, PersonDetectionArray
+from camera_interfaces.msg import PersonDetection, PersonDetectionArray, PoseDetectionArray, PoseDetection
 
 """
 ROS2 node for real-time human pose detection using an AI model.
@@ -19,10 +22,11 @@ with an optional annotated image.
 
 Subscriptions:
     /camera/image_raw (sensor_msgs/Image): Raw camera image stream.
+    /person/detections (camera_interfaces/PersonDetectionArray): Detected person bounding boxes.
 
 Publishers:
     pose/ia/detected (std_msgs/String): Text description of detected people and their poses.
-    pose_ia/processed_image (sensor_msgs/Image): Annotated image with pose detections (published only if 'show_gui' is enabled).
+    /pose_ia/processed_image (sensor_msgs/Image): Annotated image with pose detections (published only if 'show_gui' is enabled).
 
 Parameters:
     show_gui (bool): If True, publishes the processed image for visualization.
@@ -39,18 +43,26 @@ class IaPoseNode(Node):
         super().__init__('ai_pose')  # ROS node name
         self.get_logger().info("Node 'ai_pose' started!")
 
-        self.last_frame = None
-        #publish the processed image so we can see it remotely
+        # Params
         self.declare_parameter('show_gui', False)
         self.show_gui = self.get_parameter('show_gui').value
         
-        # path setup for model
+        # Model
         pkg_share = get_package_share_directory('camera_processor')
         model_path = os.path.join(pkg_share, 'models', 'best.pt')
 
         # load the model
         self.get_logger().info(f"Loading YOLO model from {model_path}...")
         self.model = YOLO(model_path)
+
+        # State (thread-safe-ish)
+        self.last_frame = None
+        self.latest_detections = None
+        self.processing = False
+
+        #ROS
+        self.bridge = CvBridge()
+        self.create_timer(0.05, self.process)
 
         if self.show_gui:
             self.image_pub = self.create_publisher(Image, 'pose_ia/processed_image', 1)
@@ -66,77 +78,87 @@ class IaPoseNode(Node):
         #subscribe the bbox topic 
         self.create_subscription(
             PersonDetectionArray,
-            'person/detections',
+            '/person/detections',
             self.detections_callback,
             1
         )
 
-        #create an boolean topic to see if some person is present in frame or not 
-        self.detected_pub = self.create_publisher(String, 'pose/ia/detected', 10)
-        self.bridge = CvBridge()
+        self.pose_pub = self.create_publisher(
+            PoseDetectionArray,
+            '/pose/ia/detected',
+            1
+        )
     
     def image_callback(self, msg):
         self.last_frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
     def detections_callback(self, msg):
+        self.latest_detections = msg.detections
 
-        if self.last_frame is None:
+
+    def process(self):
+        if self.processing:
             return
 
-        frame = self.last_frame.copy()
+        if self.last_frame is None or self.latest_detections is None:
+            return
 
-        detected_poses = []
+        self.processing = True
 
-        for det in msg.detections:
+        frame = self.last_frame
+        vis_frame = self.last_frame.copy()
 
-            x = det.x
-            y = det.y
-            w = det.width
-            h = det.height
+        pose_array = PoseDetectionArray()
+        pose_array.header.stamp = self.get_clock().now().to_msg()
 
-            person_crop = frame[y:y+h, x:x+w]
+        with torch.inference_mode(): 
+            for det in self.latest_detections:
 
-            if person_crop.size == 0:
-                continue
+                x, y, w, h = det.x, det.y, det.width, det.height
 
-            processed_crop, poses = pose_process_frame_model(
-                person_crop,
-                self.model,
-                self.get_logger()
-            )
+                crop = frame[y:y+h, x:x+w]
 
-            detected_poses.extend(poses)     
+                if crop.size == 0:
+                    continue
 
-        # 1. Publish the detection message (e.g., the combined pose string)
-        if detected_poses:
-            # Combine all detected poses into a single string for publishing
-            pose_string = ", ".join(detected_poses)
-            
-            det_msg = String()
-            det_msg.data = f"Detected {len(detected_poses)} people. Poses: {pose_string}"
-            self.detected_pub.publish(det_msg)
-            
-            # Use ROS logging for status updates
-            self.get_logger().info(f"Published detection: {det_msg.data}")
-        else:
-            # Publish a message if no person is detected
-            det_msg = String()
-            det_msg.data = "No person detected."
-            self.detected_pub.publish(det_msg)
-            self.get_logger().debug("No person detected.") # Use debug for frequent non-critical updates
+                processed_crop, poses = pose_process_frame_model(
+                    crop,
+                    self.model,
+                    self.get_logger()
+                )
 
-        #publish the processed image for the Web Server ---
+                # 👇 criar mensagens estruturadas
+                for pose in poses:
+                    pose_msg = PoseDetection()
+                    pose_msg.id = det.id
+                    pose_msg.pose = pose
+                    pose_array.pose_detections.append(pose_msg)
+
+                if self.show_gui:
+                    vis_frame[y:y+h, x:x+w] = processed_crop
+
+        # Publish poses
+        self.pose_pub.publish(pose_array)
+
+        # Publish imagem
         if self.show_gui:
-            img_msg = self.bridge.cv2_to_imgmsg(processed_crop, encoding="bgr8")
+            img_msg = self.bridge.cv2_to_imgmsg(vis_frame, encoding="bgr8")
             self.image_pub.publish(img_msg)
+
+        self.processing = False
 
 
 def main(args=None):
     rclpy.init(args=args)
     node = IaPoseNode()
-    rclpy.spin(node)
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        pass
     node.destroy_node()
-    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

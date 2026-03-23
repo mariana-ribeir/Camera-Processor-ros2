@@ -22,7 +22,7 @@ def pose_process_frame_model(frame, model, logger):
     # Use simple detection instead of tracking (no lap required)
     results = model(frame, verbose=False)  
 
-    logger.info(f"Results length: {len(results)}")
+    #logger.info(f"Results length: {len(results)}")
     #logger.info(f"Results: {results}"
 
     # Get annotated frame
@@ -79,7 +79,7 @@ def pose_process_frame_keypoints(frame, model):
             cv2.putText(annotated_frame, label, (x1, y1 - 40), 
                             cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 3)
                 
-            print(f"Pessoa {i+1}: {pose}")
+            #logger.info(f"Pessoa {i+1}: {pose}")
         
     return annotated_frame, detected_poses
 

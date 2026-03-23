@@ -1,106 +1,149 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String
+from collections import deque
+from cv_bridge import CvBridge
+from rclpy.executors import MultiThreadedExecutor
+from camera_interfaces.msg import PoseDetection, PoseDetectionArray
 
-"""
-ROS2 node responsible for combining pose detection results from two sources:
-an AI-based model and a heuristic-based algorithm.
-
-The node subscribes to pose detection messages from both systems, compares
-their outputs, and publishes a final pose detection result with an estimated
-certainty level.
-
-Subscriptions:
-    /pose/ia/detected (std_msgs/String): Pose detection results produced by the AI-based pose detection node.
-    /pose/heuristic/detected (std_msgs/String): Pose detection results produced by the heuristic pose detection node.
-
-Publishers:
-    pose/detected (std_msgs/String): Final fused pose detection result including certainty level and source agreement.
-
-Attributes:
-    latest_ai_pose (str | None): Most recent pose detection result received from the AI node.
-    latest_heuristic_pose (str | None):  Most recent pose detection result received from the heuristic node.
-    ai_sub (rclpy.Subscription): Subscriber for the AI pose detection topic.
-    heuristic_sub (rclpy.Subscription): Subscriber for the heuristic pose detection topic.
-    detected_pub (rclpy.Publisher): Publisher for the final fused pose detection result.
-"""
 class PoseProcessorNode(Node):
     def __init__(self):
         super().__init__('pose_processor')
         self.get_logger().info("Node 'pose_processor' (AI + Heuristic) started!")
 
-       # State variables to store the latest from each node
-        self.latest_ai_pose = None
-        self.latest_heuristic_pose = None
+        self.bridge = CvBridge()
+
+        # Sliding window parameters
+        self.window_size = 10
+        self.consensus_ratio = 0.8
+        self.pose_history = {}  # {id: deque([...], maxlen=window_size)}
+
+        # Latest raw messages
+        self.latest_ai_msg = None
+        self.latest_heuristic_msg = None
+        self.processing = False
 
         # Subscribers
         self.ai_sub = self.create_subscription(
-            String, '/pose/ia/detected', self.ai_callback, 10)
-        
+            PoseDetectionArray, '/pose/ia/detected', self.ai_callback, 10)
         self.heuristic_sub = self.create_subscription(
-            String, '/pose/heuristic/detected', self.heuristic_callback, 10)
-        
+            PoseDetectionArray, '/pose/heuristic/detected', self.heuristic_callback, 10)
+
         # Publisher
-        self.detected_pub = self.create_publisher(String, 'pose/detected', 10)
-        
-        # Timer to check and compare at 10Hz (0.1s)
-        self.create_timer(0.1, self.compare_and_publish)
+        self.detected_pub = self.create_publisher(PoseDetectionArray, 'pose/detected', 10)
 
-    
-    def ai_callback(self, msg):
-        """
-        Callback executed when a new AI pose detection message is received.
+        # Timer to process messages periodically
+        self.create_timer(0.05, self.process_poses)
 
-        Args:
-            msg (std_msgs.msg.String): Message containing AI pose detection results.
-        """
-        # Logic to extract the pose list from the string "Poses: standing, sitting"
-        self.latest_ai_pose = msg.data
-    
+    def ai_callback(self, msg: PoseDetectionArray):
+        self.latest_ai_msg = msg
 
-    def heuristic_callback(self, msg):
-        """
-        Callback executed when a new heuristic pose detection message is received.
+    def heuristic_callback(self, msg: PoseDetectionArray):
+        self.latest_heuristic_msg = msg
 
-        Args:
-            msg (std_msgs.msg.String): Message containing heuristic pose detection results.
+    def fuse_pose(self, ai_pose, heuristic_pose):
         """
-        self.latest_heuristic_pose = msg.data
+        Simple fusion logic:
+        - If AI and Heuristic agree → return that
+        - Else → return AI (could refine with confidence later)
+        """
+        if ai_pose == heuristic_pose:
+            return ai_pose
+        return ai_pose  
 
-    def compare_and_publish(self):
-        """
-        Periodic timer callback that compares the latest AI and heuristic pose
-        detections and publishes a fused result with a certainty estimate.
-        """
-        # If we don't even have AI data, we can't do much.
-        if self.latest_ai_pose is None:
-            self.get_logger().debug("Waiting for AI data...")
-            return 
+    def process_poses(self):
+        if self.processing:
+            return
 
-        final_msg = String()
-        
-        # Case 1: We have both - Compare them
-        if self.latest_heuristic_pose is not None:
-            if self.latest_ai_pose == self.latest_heuristic_pose:
-                certainty = 100
-                status = "Agreed"
+        if self.latest_ai_msg is None or self.latest_heuristic_msg is None:
+            return
+
+        #  timestamp synchronization 
+        ai_time = self.latest_ai_msg.header.stamp
+        h_time = self.latest_heuristic_msg.header.stamp
+
+        ai_sec = ai_time.sec + ai_time.nanosec * 1e-9
+        h_sec = h_time.sec + h_time.nanosec * 1e-9
+
+        time_diff = abs(ai_sec - h_sec)
+
+        if time_diff > 0.1: 
+            self.get_logger().debug(f"Skipping unsynced frames: {time_diff:.3f}s")
+            return
+
+        self.processing = True
+
+        # prepare data 
+        ai_detections = self.latest_ai_msg.pose_detections
+        heuristic_detections = self.latest_heuristic_msg.pose_detections
+
+        heuristic_dict = {p.id: p.pose for p in heuristic_detections}
+        final_poses = []
+
+        # process person
+        for p in ai_detections:
+            pid = p.id
+            ai_pose = p.pose
+            h_pose = heuristic_dict.get(pid, None)
+
+            fused_pose = self.fuse_pose(ai_pose, h_pose)
+
+            # sliding window
+            if pid not in self.pose_history:
+                self.pose_history[pid] = deque(maxlen=self.window_size)
+
+            self.pose_history[pid].append(fused_pose)
+
+            counts = {
+                pose: self.pose_history[pid].count(pose)
+                for pose in set(self.pose_history[pid])
+            }
+
+            most_common_pose = max(counts, key=counts.get)
+            consensus_ratio_actual = counts[most_common_pose] / len(self.pose_history[pid])
+
+            # fuse logic ---
+            if h_pose is not None and ai_pose == h_pose:
+                final_pose = fused_pose
+            elif consensus_ratio_actual >= self.consensus_ratio:
+                final_pose = most_common_pose
             else:
-                certainty = 50
-                status = "Disputed"
-            
-            final_msg.data = f"Certainty: {certainty}% | Mode: {status} | AI: {self.latest_ai_pose}"
+                final_pose = fused_pose  
 
-        # Case 2: Heuristic is missing - Trust AI but note the lack of verification
-        else:
-            certainty = 75 
-            status = "AI Only (Heuristic Offline)"
-            final_msg.data = f"Certainty: {certainty}% | Mode: {status} | AI: {self.latest_ai_pose}"
+            pose_msg = PoseDetection()
+            pose_msg.id = pid
+            pose_msg.pose = final_pose
 
-        self.detected_pub.publish(final_msg)
+            final_poses.append(pose_msg)
+
+        # clean old IDs 
+        active_ids = {p.id for p in ai_detections}
+
+        for pid in list(self.pose_history.keys()):
+            if pid not in active_ids:
+                del self.pose_history[pid]
+
+        # publish result
+        msg_out = PoseDetectionArray()
+        msg_out.header.stamp = self.get_clock().now().to_msg()
+        msg_out.header.frame_id = "camera"
+        msg_out.pose_detections.extend(final_poses)
+
+        self.detected_pub.publish(msg_out)
+
+        self.get_logger().debug(f"Published {len(final_poses)} poses")
+
+        self.processing = False
 
 def main(args=None):
     rclpy.init(args=args)
     node = PoseProcessorNode()
-    rclpy.spin(node)
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        pass
     node.destroy_node()
-    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()

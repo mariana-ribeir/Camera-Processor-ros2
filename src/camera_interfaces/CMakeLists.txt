@@ -8,6 +8,8 @@ find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/PersonDetection.msg"
   "msg/PersonDetectionArray.msg"
+  "msg/PoseDetection.msg"
+  "msg/PoseDetectionArray.msg"
   DEPENDENCIES std_msgs
 )
 

@@ -1,5 +1,6 @@
 import os
 
+import torch
 from ultralytics import YOLO
 
 from ament_index_python import get_package_share_directory
@@ -8,7 +9,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from cv_bridge import CvBridge
-
+from camera_interfaces.msg import PersonDetection, PersonDetectionArray, PoseDetectionArray, PoseDetection
+from rclpy.executors import MultiThreadedExecutor
 from camera_processor.helpers.pose_detector import pose_process_frame_keypoints
 
 """
@@ -41,6 +43,8 @@ Attributes:
 class HeuristicPoseNode(Node):
     def __init__(self):
         super().__init__('heuristic_pose')  # ROS node name
+        self.get_logger().info("Node 'heuristic_pose' started!")
+
 
         self.declare_parameter('show_gui', False)
         self.show_gui = self.get_parameter('show_gui').value
@@ -52,55 +56,93 @@ class HeuristicPoseNode(Node):
         self.model = YOLO(model_path)
         self.get_logger().info(f"Loading YOLO model from {model_path}...")
 
+        #ROS
+        self.bridge = CvBridge()
+
+        # State (thread-safe-ish)
+        self.last_frame = None
+        self.latest_detections = None
+        self.processing = False
+
         #subscribe the image topic 
         self.subscription = self.create_subscription(
             Image,
             '/camera/image_raw',
-            self.listener_callback,
-            10)
+            self.image_callback,
+            1)
+
+        self.create_subscription(
+            PersonDetectionArray,
+            '/person/detections',
+            self.detections_callback,
+            1
+        )
 
         if self.show_gui:
             self.image_pub = self.create_publisher(Image, 'pose_heuristic/processed_image', 1)
 
-        #create an boolean topic to see if some person is present in frame or not 
-        self.detected_pub = self.create_publisher(String, 'pose/heuristic/detected', 10)
-        self.bridge = CvBridge()
+        self.pose_pub = self.create_publisher(
+            PoseDetectionArray,
+            '/pose/heuristic/detected',
+            1
+        )
+        
+        self.create_timer(0.05, self.process)
 
-    def listener_callback(self, msg):
-        frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+    def image_callback(self, msg):
+            self.last_frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
-        # process the current frame in computer vision script
-        processed_frame, detected_poses  = pose_process_frame_keypoints(frame, self.model)
+    def detections_callback(self, msg):
+        self.latest_detections = msg.detections
 
-        # 1. Publish the detection message (e.g., the combined pose string)
-        if detected_poses:
-            # Combine all detected poses into a single string for publishing
-            pose_string = ", ".join(detected_poses)
-            
-            det_msg = String()
-            det_msg.data = f"Detected {len(detected_poses)} people. Poses: {pose_string}"
-            self.detected_pub.publish(det_msg)
-            
-        else:
-            # Publish a message if no person is detected
-            det_msg = String()
-            det_msg.data = "No person detected."
-            self.detected_pub.publish(det_msg)
-            self.get_logger().debug("No person detected.") # Use debug for frequent non-critical updates
+    def process(self):
+        if self.processing:
+            return
 
+        if self.last_frame is None or self.latest_detections is None:
+            return
 
-        #publish the processed image for the Web Server
+        self.processing = True
+
+        frame = self.last_frame.copy()
+
+        pose_array = PoseDetectionArray()
+        pose_array.header.stamp = self.get_clock().now().to_msg()
+
+        with torch.inference_mode():
+            processed_frame, detected_poses = pose_process_frame_keypoints(
+                frame,
+                self.model
+            )
+
+        for det, pose in zip(self.latest_detections, detected_poses):
+            pose_msg = PoseDetection()
+            pose_msg.id = det.id
+            pose_msg.pose = pose
+            pose_array.pose_detections.append(pose_msg)
+
+        self.pose_pub.publish(pose_array)
+
         if self.show_gui:
             img_msg = self.bridge.cv2_to_imgmsg(processed_frame, encoding="bgr8")
             self.image_pub.publish(img_msg)
 
+        self.processing = False
+
 
 def main(args=None):
     rclpy.init(args=args)
+
     node = HeuristicPoseNode()
-    rclpy.spin(node)
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        pass
+
     node.destroy_node()
-    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
