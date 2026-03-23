@@ -1,40 +1,30 @@
 # ROS2 Camera Processor Package
 
-This ROS2 package simulates a camera using a video file and publishes frames as ROS2 image messages.  
-It also includes a placeholder for vision processing (`processor.py`).
+This ROS2 package simulates a camera using a video file and publishes frames as ROS2 image messages.
+It includes multiple processing nodes for perception tasks such as person detection, pose estimation, and color detection.
 
 ## Features
 
 - Simulates a camera from a video file (`walk_people.mp4` or any `.mp4` video)
 - Publishes frames to the `/camera/image_raw` topic
-- Ready to add custom image processing
+- Modular perception system:
+  - Person detection
+  - Pose estimation (AI + heuristic)
+  - Color detection
+- Web-based visualization using `web_video_server`
 
 ## Workflow with Docker
 
 This project uses Docker to ensure a consistent ROS2 Jazzy environment across all machines.
 
 ### 1. Prerequisites
-* Docker Desktop (WSL option).
-* Visual Studio Code (VS Code).
-* VS Code Extension: Dev Containers (formerly "Remote - Containers").
-* **VcXsrv** (X Server for Windows) - Required to display OpenCV windows.
+- Docker Desktop (WSL option)
+- Visual Studio Code (VS Code)
+- VS Code Extension: Dev Containers
+- Web browser for visualizing topics
 
-### 2. VcXsrv Setup (Required for Display)
 
-Since the application uses `cv2.imshow()` to display video frames, you need an X server on Windows:
-
-1. **Download VcXsrv:** https://sourceforge.net/projects/vcxsrv/
-2. **Install** with default options
-3. **Run XLaunch** from the Start menu with these settings:
-   - Select "Multiple windows" → Next
-   - Select "Start no client" → Next
-   - ✅ Check **"Disable access control"** (important!)
-   - Click Finish
-4. The VcXsrv icon should appear in the system tray
-
-> **Note:** You must start VcXsrv **before** opening the Development Container.
-
-### 3. Launching the Environment
+### 2. Launching the Environment
 
 You can use Docker Compose for easier execution, or proceed with Dev Containers in VS Code.
 
@@ -63,7 +53,6 @@ You can use Docker Compose for easier execution, or proceed with Dev Containers 
 You don't need to run Docker commands manually. VS Code will handle the container setup automatically:
 
 1.  **Clone the Repository:** Clone this repository to your local system.
-2.  **Start VcXsrv:** Make sure XLaunch is running (see step 2 above).
 3.  **Open in VS Code:** Open the root project folder (`/ros2_ws`) in VS Code.
 4.  **Launch the Container:** When the VS Code notification appears asking **"Reopen in Container?"**, click it.
     * (If the notification doesn't appear, press Ctrl+Shift+P (or Cmd+Shift+P) and run the Dev Containers: Reopen in Container command).
@@ -110,6 +99,38 @@ To visualize the image view, or in this case the video view:
 ros2 run rqt_image_view rqt_image_view
 ```
 
+## Launch File
+
+The system can be started using a ROS2 launch file that initializes all nodes:
+- camera_simulator
+- person_processor
+- ai_pose
+- heuristic_pose
+- pose_processor
+- web_video_server
+
+```bash
+ros2 launch camera_processor your_launch_file.py
+```
+
+
+## Web Visualization 
+
+The `web_video_server` allows you to view image topics in your browser.
+
+Open in browser:
+
+```
+http://localhost:8080/stream?topic=/camera/image_raw
+```
+
+You can also visualize processed topics such as:
+- /color/frame_processed
+- /person/detected
+- /pose/ia/detected
+- /pose/heuristic/detected
+- /pose/detected
+
 ## Architecture Summary
 
 ```
@@ -120,37 +141,61 @@ ros2 run rqt_image_view rqt_image_view
                                                 |
                                                 |  /camera/image_raw
                                                 |
-          +---------------------------+------------------+-----------------------+
-          |                           |                  |                       |
-          v                           v                  v                       v
-+---------------------------+ +------------------+  +------------------+ +-------------------------+
-| Color Processor           | | Person Processor  | | IA Pose          | | Heuristic Pose          |
-| (color_processor)         | | (person_processor)| | (ai_pose)        | | (heuristic_pose)        |
-+---------------------------+ +-------------------+ +------------------+ +-------------------------+
-| /color/frame_processed    | | person/detected   | | pose/ia/detected | | pose/heuristic/detected |
-| processed                 | | person/count      | |                  | | detected                |
-| /color/red_detected       | |                   | |                  | |                         |
-|                           | |                   | |                  | |                         |
-+---------------------------+ +-------------------+ +------------------+ +-------------------------+      
-                                                            |                        |
-                                                            +------------------------+
-                                                                        |
-                                                                        v
-                                                                +------------------+
-                                                                | Pose Processor   |
-                                                                | (pose_processor) |
-                                                                +------------------+
-                                                                | pose/detected    |
-                                                                |                  |
-                                                                +------------------+
+          +---------------------------+------------------+
+          |                                              |
+          v                                              v
++---------------------------+              +----------------------+
+| Color Processor           |              | Person Processor     |
+| (color_processor)         |              | (person_processor)   |
++---------------------------+              +----------------------+
+| /color/frame_processed    |              | person/detected      |
+| /color/red_detected       |              | person/detections    |
++---------------------------+              +----------------------+
+                                                     |
+                                                     |
+                                                     |
+                          +--------------------------+--------------------------+
+                          |                                                     |
+                          v                                                     v
+               +------------------+                               +-------------------------+
+               | IA Pose          |                               | Heuristic Pose          |
+               | (ai_pose)        |                               | (heuristic_pose)        |
+               +------------------+                               +-------------------------+
+               | pose/ia/detected |                               | pose/heuristic/detected |
+               +------------------+                               +-------------------------+
+                          |                                                    |
+                          |                                                    |
+                            +------------------------+-------------------------+
+                                                     |
+                                                     v
+                                            +------------------+
+                                            | Pose Processor   |
+                                            | (pose_processor) |
+                                            +------------------+
+                                            | pose/detected    |
+                                            +------------------+
 ```
 
 **Data Flow:**
 - `camera_simulator` publishes images to `/camera/image_raw`.
-- Four nodes subscribe to `/camera/image_raw`: `color_processor`, `person_processor`, `ai_pose`, `heuristic_pose`.
-- `ai_pose` and `heuristic_pose` publish results to `pose/ia/detected` and `pose/heuristic/detected`, which converge in `pose_processor`.
-- `pose_processor` combines the results and publishes to `pose/detected`.
-- `color_processor` and `person_processor` publish to their own topics.
+
+- The following nodes subscribe independently to the camera stream:
+  - `color_processor`
+  - `person_processor`
+  - `ai_pose`
+  - `heuristic_pose`
+
+- Each node processes the incoming frames independently and publishes its own results:
+  - `color_processor` → `/color/frame_processed`, `/color/red_detected`
+  - `person_processor` → `person/detected`, `person/count`
+  - `ai_pose` → `pose/ia/detected`
+  - `heuristic_pose` → `pose/heuristic/detected`
+
+- The `pose_processor` node:
+  - Subscribes to both `pose/ia/detected` and `pose/heuristic/detected`
+  - Combines the results
+  - Publishes the final output to `pose/detected`
+
 
 | Package                     | Node Name         | Purpose                                                  |
 | --------------------------- | ----------------- | ------------------------------------------------------- |
@@ -163,17 +208,24 @@ ros2 run rqt_image_view rqt_image_view
 
 ### Relationship between Pose Nodes
 
-The `heuristic_pose` and `ai_pose` nodes subscribe directly to the `/camera/image_raw` topic and process frames independently:
+The `heuristic_pose` and `ai_pose` nodes subscribe directly to the `/camera/image_raw` topic and process frames independently.
 
 - `heuristic_pose`: Uses heuristic algorithms to detect human poses.
 - `ai_pose`: Uses an AI model (YOLO) to detect poses.
 
-Each publishes their results to their respective topics (`pose/heuristic/detected` and `pose/ia/detected`).
+Each node publishes its results to its respective topic:
+- `pose/heuristic/detected`
+- `pose/ia/detected`
 
-The `pose_processor` node acts as an aggregator: it subscribes to the topics from `heuristic_pose` and `ai_pose`, combines or compares the detections, and publishes the final result to `pose/detected`. It does not receive images directly; it only processes the results already calculated by the other nodes.
+The `pose_processor` node acts as an aggregator:
+- It subscribes to both pose topics
+- Combines or compares the detections
+- Publishes the final result to `pose/detected`
+
+The `pose_processor` does not receive image data directly.
 
 
-
+<!--
 ## Current Stage: Early
 
 Currently this project is in **Early Stage**, it's like the initial phase, understanding the big problem by dividing it into some small problems.
@@ -205,7 +257,7 @@ Currently this project is in **Early Stage**, it's like the initial phase, under
        - ✔️ Subscribes to `/camera/image_raw`
        - ✔️ Processes frames to detect poses using AI (YOLO)
        - ✔️ Publishes pose detections to `pose/ia/detected`
-<!--
+
 ## Final Stage
 
 At the end of the project it should be possible to identify a human in the video near the robot that is also present in the video and tell the robot to stop moving to keep the human safe.
