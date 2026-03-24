@@ -6,22 +6,21 @@ from cv_bridge import CvBridge
 from camera_processor.helpers.color_detector import color_process_frame
 
 """
-ROS 2 node responsible for receiving image streams, delegating color 
-detection processing (e.g., red color presence) to an external backend 
-script, and publishing the detection results and the processed image.
+ROS 2 node for real-time color detection (specifically red).
 
-Subscribes:
-    /camera/image_raw (sensor_msgs/Image): The raw video stream input.
+This node processes incoming camera frames using a color-masking helper.
+It identifies the presence of red pixels and optionally publishes a 
+processed image showing the detection mask or bounding boxes.
 
-Publishes:
-    color/red_detected (std_msgs/Bool): Boolean flag indicating if the target color (red) was detected.
-    color/processed_image (sensor_msgs/Image): The frame after the computer vision processing, including annotations.
+Subscriptions:
+    /camera/image_raw (sensor_msgs/Image): Input video stream.
 
-Attributes:
-    bridge (CvBridge): Utility for converting between ROS Image messages and OpenCV images (numpy arrays).
-    subscription (rclpy.Subscription): Subscription object for the input image topic.
-    red_pub (rclpy.Publisher): Publisher for the boolean detection flag.
-    image_pub (rclpy.Publisher): Publisher for processed images when visualization is enabled.
+Publishers:
+    /color/red_detected (std_msgs/Bool): True if red is found in the frame.
+    /color/processed_image (sensor_msgs/Image): Visualization of the color mask.
+
+Parameters:
+    show_gui (bool): Enables/disables the processed image publisher.
 """
 class ColorProcessor(Node):
     def __init__(self):
@@ -42,6 +41,7 @@ class ColorProcessor(Node):
         self.red_pub = self.create_publisher(Bool, 'color/red_detected', 10)
         self.bridge = CvBridge()
 
+        self.image_pub = None
         if self.show_gui:
             self.image_pub = self.create_publisher(Image, 'color/processed_image', 1)
 

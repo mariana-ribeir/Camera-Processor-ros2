@@ -1,63 +1,58 @@
 import torch
-
 import rclpy
 import os
-from rclpy.node import Node
-from rclpy.executors import MultiThreadedExecutor
-from sensor_msgs import msg
-from sensor_msgs.msg import Image
-from std_msgs.msg import String
-from cv_bridge import CvBridge
-from ament_index_python.packages import get_package_share_directory
 from ultralytics import YOLO
+from rclpy.node import Node
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+from rclpy.executors import MultiThreadedExecutor
+from ament_index_python.packages import get_package_share_directory
 from camera_processor.helpers.pose_detector import pose_process_frame_model
-from camera_interfaces.msg import PersonDetection, PersonDetectionArray, PoseDetectionArray, PoseDetection
+from camera_interfaces.msg import PersonDetectionArray, PoseDetectionArray, PoseDetection
 
 """
-ROS2 node for real-time human pose detection using an AI model.
+ROS2 node for real-time human pose detection using a crop-based AI approach.
 
-This node subscribes to raw camera images, processes each frame using a
-YOLO-based pose detection model, and publishes the detected poses along
-with an optional annotated image.
+This node subscribes to raw camera images and person bounding boxes. It crops
+the image around each detected person and runs a YOLO pose model on the 
+individual crops to achieve higher accuracy or specific pose analysis.
 
 Subscriptions:
     /camera/image_raw (sensor_msgs/Image): Raw camera image stream.
-    /person/detections (camera_interfaces/PersonDetectionArray): Detected person bounding boxes.
+    /person/detections (camera_interfaces/PersonDetectionArray): Bounding boxes used for cropping.
 
 Publishers:
-    pose/ia/detected (std_msgs/String): Text description of detected people and their poses.
-    /pose_ia/processed_image (sensor_msgs/Image): Annotated image with pose detections (published only if 'show_gui' is enabled).
+    /pose/ia/detected (camera_interfaces/PoseDetectionArray): Array of poses linked to person IDs.
+    /pose/ia/processed_image (sensor_msgs/Image): Annotated full frame with pose crops re-inserted.
 
 Parameters:
-    show_gui (bool): If True, publishes the processed image for visualization.
+    show_gui (bool): If True, reconstructs the full frame with pose overlays and publishes it.
 
 Attributes:
-    subscription (rclpy.Subscription): Subscriber to the camera image topic.
-    detected_pub (rclpy.Publisher): Publisher for the pose detection results.
-    image_pub (rclpy.Publisher): Publisher for the processed image when visualization is enabled.
-    bridge (CvBridge): Utility for converting between ROS Image messages and OpenCV images.
-    model (YOLO): Loaded YOLO pose detection model used for inference.
+    model (YOLO): The YOLO pose model loaded from 'best.pt'.
+    bridge (CvBridge): Utility for ROS-OpenCV image conversion.
+    last_frame (ndarray): Storage for the most recent camera frame.
+    last_detections (list): Storage for the most recent bounding boxes.
 """
+
 class IaPoseNode(Node):
     def __init__(self):
         super().__init__('ai_pose')  # ROS node name
         self.get_logger().info("Node 'ai_pose' started!")
 
-        # Params
+        # params
         self.declare_parameter('show_gui', False)
         self.show_gui = self.get_parameter('show_gui').value
         
-        # Model
+        # load the model
         pkg_share = get_package_share_directory('camera_processor')
         model_path = os.path.join(pkg_share, 'models', 'best.pt')
-
-        # load the model
         self.get_logger().info(f"Loading YOLO model from {model_path}...")
         self.model = YOLO(model_path)
 
-        # State (thread-safe-ish)
+        # state and thread
         self.last_frame = None
-        self.latest_detections = None
+        self.last_detections = None
         self.processing = False
 
         #ROS
@@ -65,7 +60,7 @@ class IaPoseNode(Node):
         self.create_timer(0.05, self.process)
 
         if self.show_gui:
-            self.image_pub = self.create_publisher(Image, 'pose_ia/processed_image', 1)
+            self.image_pub = self.create_publisher(Image, 'pose/ia/processed_image', 1)
 
         #subscribe the camera topic 
         self.create_subscription(
@@ -83,6 +78,7 @@ class IaPoseNode(Node):
             1
         )
 
+        #publish the pose detections 
         self.pose_pub = self.create_publisher(
             PoseDetectionArray,
             '/pose/ia/detected',
@@ -93,30 +89,33 @@ class IaPoseNode(Node):
         self.last_frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
     def detections_callback(self, msg):
-        self.latest_detections = msg.detections
+        self.last_detections = msg.detections
 
 
     def process(self):
-        if self.processing:
-            return
-
-        if self.last_frame is None or self.latest_detections is None:
+        if self.processing or self.last_frame is None or self.last_detections is None:
             return
 
         self.processing = True
-
         frame = self.last_frame
         vis_frame = self.last_frame.copy()
+        
+        # get the image for subscribed topic 
+        height, width = frame.shape[:2]
 
         pose_array = PoseDetectionArray()
         pose_array.header.stamp = self.get_clock().now().to_msg()
 
         with torch.inference_mode(): 
-            for det in self.latest_detections:
+            for det in self.last_detections:
+                # calculate coordinates
+                x1 = max(0, int(det.x))
+                y1 = max(0, int(det.y))
+                x2 = min(width, int(det.x + det.width))
+                y2 = min(height, int(det.y + det.height))
 
-                x, y, w, h = det.x, det.y, det.width, det.height
-
-                crop = frame[y:y+h, x:x+w]
+                # extract the crop for the current person
+                crop = frame[y1:y2, x1:x2]
 
                 if crop.size == 0:
                     continue
@@ -127,20 +126,15 @@ class IaPoseNode(Node):
                     self.get_logger()
                 )
 
-                # 👇 criar mensagens estruturadas
+                # map pose coordinates to publish
                 for pose in poses:
                     pose_msg = PoseDetection()
                     pose_msg.id = det.id
                     pose_msg.pose = pose
                     pose_array.pose_detections.append(pose_msg)
 
-                if self.show_gui:
-                    vis_frame[y:y+h, x:x+w] = processed_crop
-
-        # Publish poses
         self.pose_pub.publish(pose_array)
 
-        # Publish imagem
         if self.show_gui:
             img_msg = self.bridge.cv2_to_imgmsg(vis_frame, encoding="bgr8")
             self.image_pub.publish(img_msg)
@@ -153,7 +147,6 @@ def main(args=None):
     node = IaPoseNode()
     executor = MultiThreadedExecutor()
     executor.add_node(node)
-
     try:
         executor.spin()
     except KeyboardInterrupt:

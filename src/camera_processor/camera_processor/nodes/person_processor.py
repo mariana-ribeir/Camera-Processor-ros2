@@ -12,34 +12,33 @@ from camera_interfaces.msg import PersonDetection, PersonDetectionArray
 
 from camera_processor.helpers.person_detector import (
     person_process_frame,
-    get_similarity_threshold,
 )
 
 """
-ROS2 Node for real-time human detection and counting.
+ROS2 Node for real-time human detection and tracking.
 
-Subscribes to raw camera images, processes them using computer vision
-to detect people, and publishes the detection status and count.
-Also allows runtime adjustment of the similarity threshold via keyboard input.
+This node acts as the primary detector for the system. It processes raw camera 
+images using a YOLOv8-pose model to identify people, generates tracking IDs, 
+and provides bounding box coordinates for use by downstream pose-estimation nodes.
 
-Subscribes:
+Subscriptions:
     /camera/image_raw (sensor_msgs/Image): The raw video stream input.
 
 Publishers:
-    person/detected (std_msgs/Bool): Indicates whether at least one person is detected.
-    person/count (std_msgs/Int32): Number of detected persons in the current frame.
-    person/processed_image (sensor_msgs/Image): Annotated image with detections (only if 'show_gui' is enabled).
+    /person/detections (camera_interfaces/PersonDetectionArray): Array containing tracking IDs and bounding boxes (x, y, w, h).
+    /person/detected (std_msgs/Bool): True if at least one person is in frame.
+    /person/processed_image (sensor_msgs/Image): Annotated image with bounding boxes and IDs (if show_gui is enabled).
 
 Parameters:
-    show_gui (bool): If True, publishes the processed image with detections.
+    show_gui (bool): If True, publishes the annotated visualization frame.
 
 Attributes:
-    subscription (rclpy.Subscription): Subscriber to '/camera/image_raw'.
-    detected_pub (rclpy.Publisher): Publisher for the 'person/detected' topic.
-    image_pub (rclpy.Publisher): Publisher for processed images (if enabled).
-    bridge (CvBridge): Converter between ROS Image messages and OpenCV images.
-    model (YOLO): YOLOv8 pose model used for person detection.
+    model (YOLO): YOLOv8-pose model used as a person detector.
+    bridge (CvBridge): Utility for ROS-to-OpenCV image conversion.
+    last_frame (ndarray): The most recent frame stored for the processing timer.
+    detections_pub (rclpy.Publisher): Publisher for the structured detection data.
 """
+
 class PersonProcessorNode(Node):
     def __init__(self):
         super().__init__('person_processor')  
@@ -117,6 +116,10 @@ class PersonProcessorNode(Node):
             msg.detections.append(det_msg)
 
         self.detections_pub.publish(msg)
+
+        status_msg = Bool()
+        status_msg.data = bool(people_detected)
+        self.detected_pub.publish(status_msg)
 
         #publish the processed image for the Web Server 
         if self.show_gui:

@@ -1,45 +1,34 @@
 import os
-
 import torch
-from ultralytics import YOLO
-
-from ament_index_python import get_package_share_directory
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
-from std_msgs.msg import String
+from ultralytics import YOLO
 from cv_bridge import CvBridge
-from camera_interfaces.msg import PersonDetection, PersonDetectionArray, PoseDetectionArray, PoseDetection
+from sensor_msgs.msg import Image
 from rclpy.executors import MultiThreadedExecutor
+from ament_index_python import get_package_share_directory
 from camera_processor.helpers.pose_detector import pose_process_frame_keypoints
+from camera_interfaces.msg import PersonDetectionArray, PoseDetectionArray, PoseDetection
 
 """
-ROS2 Node for real-time human detection and counting.
+ROS2 Node for heuristic human pose detection.
 
-This node subscribes to raw camera images, processes each frame using a YOLOv8
-model to detect people, and publishes both the detection status and the number
-of detected persons. Optionally, it can also publish an annotated image for
-visualization.
+This node synchronizes raw camera images with person detection data. It uses 
+a YOLOv8-pose model to extract skeletal keypoints and maps them to existing 
+person IDs provided by an external detection node.
 
 Subscriptions:
-    /camera/image_raw (sensor_msgs/Image): Raw camera video stream.
+    /camera/image_raw (sensor_msgs/Image): The video stream to process.
+    /person/detections (camera_interfaces/PersonDetectionArray): Bounding boxes and IDs.
 
 Publishers:
-    person/detected (std_msgs/Bool): Indicates whether at least one person is detected.
-    person/count (std_msgs/Int32): Number of detected persons in the current frame.
-    person/processed_image (sensor_msgs/Image): Annotated image with detections (only if 'show_gui' is enabled).
+    /pose/heuristic/detected (camera_interfaces/PoseDetectionArray): The final pose data.
+    /pose_heuristic/processed_image (sensor_msgs/Image): Debug view (if show_gui is True).
 
 Parameters:
-    show_gui (bool): If True, publishes the processed image with detections.
-
-Attributes:
-    subscription (rclpy.Subscription): Subscriber to '/camera/image_raw'.
-    detected_pub (rclpy.Publisher): Publisher for the 'person/detected' topic.
-    count_pub (rclpy.Publisher): Publisher for the 'person/count' topic.
-    image_pub (rclpy.Publisher): Publisher for processed images (if enabled).
-    bridge (CvBridge): Converter between ROS Image messages and OpenCV images.
-    model (YOLO): YOLOv8 pose model used for person detection.
+    show_gui (bool): Toggle for the debug image publisher.
 """
+
 class HeuristicPoseNode(Node):
     def __init__(self):
         super().__init__('heuristic_pose')  # ROS node name
