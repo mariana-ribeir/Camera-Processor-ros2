@@ -1,6 +1,7 @@
 import torch
 import rclpy
 import os
+import threading
 from ultralytics import YOLO
 from rclpy.node import Node
 from cv_bridge import CvBridge
@@ -97,36 +98,26 @@ class IaPoseNode(Node):
             return
 
         self.processing = True
-        frame = self.last_frame
-        vis_frame = self.last_frame.copy()
-        
-        # get the image for subscribed topic 
-        height, width = frame.shape[:2]
+        frame = self.last_frame.copy()
+        detections = list(self.last_detections)  # make a copy to avoid race conditions
 
+        threading.Thread(target=self._process_frame, args=(frame, detections), daemon=True).start()
+
+    def _process_frame(self, frame, detections):
+        height, width = frame.shape[:2]
         pose_array = PoseDetectionArray()
         pose_array.header.stamp = self.get_clock().now().to_msg()
 
         with torch.inference_mode(): 
-            for det in self.last_detections:
-                # calculate coordinates
+            for det in detections:
                 x1 = max(0, int(det.x))
                 y1 = max(0, int(det.y))
                 x2 = min(width, int(det.x + det.width))
                 y2 = min(height, int(det.y + det.height))
-
-                # extract the crop for the current person
                 crop = frame[y1:y2, x1:x2]
-
                 if crop.size == 0:
                     continue
-
-                processed_crop, poses = pose_process_frame_model(
-                    crop,
-                    self.model,
-                    self.get_logger()
-                )
-
-                # map pose coordinates to publish
+                processed_crop, poses = pose_process_frame_model(crop, self.model, self.get_logger())
                 for pose in poses:
                     pose_msg = PoseDetection()
                     pose_msg.id = det.id
@@ -136,11 +127,10 @@ class IaPoseNode(Node):
         self.pose_pub.publish(pose_array)
 
         if self.show_gui:
-            img_msg = self.bridge.cv2_to_imgmsg(vis_frame, encoding="bgr8")
+            img_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
             self.image_pub.publish(img_msg)
 
         self.processing = False
-
 
 def main(args=None):
     rclpy.init(args=args)

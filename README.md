@@ -132,8 +132,6 @@ You can also visualize processed topics such as:
 - /pose/detected
 
 ## Architecture Summary
-
-```
                                         +--------------------+
                                         |   Camera Node      |
                                         | (camera_simulator) |
@@ -141,20 +139,20 @@ You can also visualize processed topics such as:
                                                 |
                                                 |  /camera/image_raw
                                                 |
-          +---------------------------+------------------+
-          |                                              |
-          v                                              v
-+---------------------------+              +----------------------+
-| Color Processor           |              | Person Processor     |
-| (color_processor)         |              | (person_processor)   |
-+---------------------------+              +----------------------+
-| /color/frame_processed    |              | person/detected      |
-| /color/red_detected       |              | person/detections    |
-+---------------------------+              +----------------------+
-                                                     |
-                                                     |
-                                                     |
-                          +--------------------------+--------------------------+
+          +---------------------------+---------------------+
+          |                           |                     |                      
+          v                           v                     |                      
++---------------------------+ +------------------+          |
+| Color Processor           | | Person Processor |          |           
+| (color_processor)         | | (person_processor)|         |
++---------------------------+ +------------------+          |
+| /color/frame_processed    | | person/detected  |          |
+| /color/red_detected       | | person/detections|          |
++---------------------------+ +------------------+          |
+                                    |                       |
+                                    |                       |
+                                    v                       v            
+                          +---------------------------------+-------------------+
                           |                                                     |
                           v                                                     v
                +------------------+                               +-------------------------+
@@ -163,9 +161,9 @@ You can also visualize processed topics such as:
                +------------------+                               +-------------------------+
                | pose/ia/detected |                               | pose/heuristic/detected |
                +------------------+                               +-------------------------+
+                          ^                                                    ^
                           |                                                    |
-                          |                                                    |
-                            +------------------------+-------------------------+
+                          +-------------------- person/detected ---------------+
                                                      |
                                                      v
                                             +------------------+
@@ -174,7 +172,6 @@ You can also visualize processed topics such as:
                                             +------------------+
                                             | pose/detected    |
                                             +------------------+
-```
 
 **Data Flow:**
 - `camera_simulator` publishes images to `/camera/image_raw`.
@@ -185,11 +182,17 @@ You can also visualize processed topics such as:
   - `ai_pose`
   - `heuristic_pose`
 
-- Each node processes the incoming frames independently and publishes its own results:
+- Each node processes the incoming data and publishes its own results:
   - `color_processor` → `/color/frame_processed`, `/color/red_detected`
   - `person_processor` → `person/detected`, `person/count`
   - `ai_pose` → `pose/ia/detected`
   - `heuristic_pose` → `pose/heuristic/detected`
+
+- The `ai_pose` and `heuristic_pose` nodes use two inputs:
+  - `/camera/image_raw` (raw frames)
+  - `person/detected` (person detections)
+
+  This allows pose estimation to be guided by detected persons while still using the full image.
 
 - The `pose_processor` node:
   - Subscribes to both `pose/ia/detected` and `pose/heuristic/detected`
@@ -197,28 +200,31 @@ You can also visualize processed topics such as:
   - Publishes the final output to `pose/detected`
 
 
-| Package                     | Node Name         | Purpose                                                  |
-| --------------------------- | ----------------- | ------------------------------------------------------- |
-| `camera`                    | `camera_publisher`| Publishes raw video frames                              |
-| `camera-processor`          | `color_processor` | Processes frames to detect colors and publish results   |
-|                             | `person_processor`| Processes frames to detect people and publish results   |
+| Package                     | Node Name         | Purpose                                                               |
+| --------------------------- | ----------------- | --------------------------------------------------------------------- |
+| `camera`                    | `camera_simulator`| Publishes raw video frames                                            | 
+| `camera-processor`          | `color_processor` | Processes frames to detect colors and publish results                 |
+|                             | `person_processor`| Processes frames to detect people and publish results                 |
 |                             | `heuristic_pose`  | Processes frames to detect poses using heuristics and publish results |
-|                             | `ai_pose`         | Processes frames to detect poses using AI and publish results |
-|                             | `pose_processor`  | Combines AI and heuristic detections to publish final results |
+|                             | `ai_pose`         | Processes frames to detect poses using AI and publish results         |
+|                             | `pose_processor`  | Combines AI and heuristic detections to publish final results         |
 
 ### Relationship between Pose Nodes
 
-The `heuristic_pose` and `ai_pose` nodes subscribe directly to the `/camera/image_raw` topic and process frames independently.
+The `heuristic_pose` and `ai_pose` nodes subscribe to multiple inputs:
+
+- `/camera/image_raw`: raw image frames
+- `person/detected`: detected persons
 
 - `heuristic_pose`: Uses heuristic algorithms to detect human poses.
 - `ai_pose`: Uses an AI model (YOLO) to detect poses.
 
-Each node publishes its results to its respective topic:
+Each node publishes its results to:
 - `pose/heuristic/detected`
 - `pose/ia/detected`
 
 The `pose_processor` node acts as an aggregator:
-- It subscribes to both pose topics
+- Subscribes to both pose topics
 - Combines or compares the detections
 - Publishes the final result to `pose/detected`
 

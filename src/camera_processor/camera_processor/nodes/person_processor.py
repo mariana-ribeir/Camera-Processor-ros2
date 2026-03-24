@@ -1,6 +1,7 @@
 import rclpy
 import os
 import torch
+import threading
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool, Int32
@@ -86,28 +87,27 @@ class PersonProcessorNode(Node):
         self.last_frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
     def process(self):
-        if self.processing:
+        if self.processing or self.last_frame is None:
             return
 
-        if self.last_frame is None:
-            return
-
+        # mark as processing immediately
         self.processing = True
 
+        # copy latest frame
         frame = self.last_frame.copy()
 
+        # run heavy YOLO in a separate thread to avoid blocking subscriber
+        threading.Thread(target=self._process_frame, args=(frame,), daemon=True).start()
+
+    def _process_frame(self, frame):
         with torch.inference_mode():
-            processed_frame, people_detected, count, detections = person_process_frame(
-                frame,
-                self.model
-            )
+            processed_frame, people_detected, count, detections = person_process_frame(frame, self.model)
 
+        # publish detections
         msg = PersonDetectionArray()
-
         for det in detections:
-            det_msg = PersonDetection()
             pid, x, y, w, h, confidence = det
-
+            det_msg = PersonDetection()
             det_msg.id = pid
             det_msg.x = x
             det_msg.y = y
@@ -116,16 +116,12 @@ class PersonProcessorNode(Node):
             msg.detections.append(det_msg)
 
         self.detections_pub.publish(msg)
+        self.detected_pub.publish(Bool(data=bool(people_detected)))
 
-        status_msg = Bool()
-        status_msg.data = bool(people_detected)
-        self.detected_pub.publish(status_msg)
-
-        #publish the processed image for the Web Server 
         if self.show_gui:
             img_msg = self.bridge.cv2_to_imgmsg(processed_frame, encoding="bgr8")
             self.image_pub.publish(img_msg)
-        
+
         self.processing = False
 
 def main(args=None):

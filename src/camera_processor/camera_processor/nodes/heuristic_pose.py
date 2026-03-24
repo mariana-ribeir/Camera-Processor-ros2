@@ -1,6 +1,7 @@
 import os
 import torch
 import rclpy
+import threading
 from rclpy.node import Node
 from ultralytics import YOLO
 from cv_bridge import CvBridge
@@ -85,24 +86,20 @@ class HeuristicPoseNode(Node):
         self.latest_detections = msg.detections
 
     def process(self):
-        if self.processing:
-            return
-
-        if self.last_frame is None or self.latest_detections is None:
+        if self.processing or self.last_frame is None or self.latest_detections is None:
             return
 
         self.processing = True
-
         frame = self.last_frame.copy()
 
+        threading.Thread(target=self._process_frame, args=(frame,), daemon=True).start()
+
+    def _process_frame(self, frame):
         pose_array = PoseDetectionArray()
         pose_array.header.stamp = self.get_clock().now().to_msg()
 
         with torch.inference_mode():
-            processed_frame, detected_poses = pose_process_frame_keypoints(
-                frame,
-                self.model
-            )
+            processed_frame, detected_poses = pose_process_frame_keypoints(frame, self.model)
 
         for det, pose in zip(self.latest_detections, detected_poses):
             pose_msg = PoseDetection()
