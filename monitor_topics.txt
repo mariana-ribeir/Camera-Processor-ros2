@@ -1,0 +1,35 @@
+# Comandos para monitorear los tópicos de pose en ROS2
+# Ejecuta cada uno en una terminal separada dentro del contenedor
+# Agrupados por nodos que publican los tópicos
+
+# === CAMERA_SIMULATOR ===
+# 1. Monitorear /camera/image_raw (imagen cruda de la cámara)
+docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic echo /camera/image_raw'
+
+# === PERSON_PROCESSOR ===
+# 2. Monitorear /person/detected (detecciones de personas)
+docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic echo /person/detected'
+
+# 3. Monitorear /person/detections (detecciones detalladas de personas)
+docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic echo /person/detections'
+
+# 4. Monitorear /person/processed_image (imagen procesada con detecciones de personas)
+docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic echo /person/processed_image'
+
+# === AI_POSE ===
+# 5. Monitorear /pose/ia/detected (detecciones de pose usando IA)
+docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic echo /pose/ia/detected'
+
+# 6. Monitorear /pose/ia/processed_image (imagen procesada con poses de IA)
+docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic echo /pose/ia/processed_image'
+
+# === HEURISTIC_POSE ===
+# 7. Monitorear /pose/heuristic/detected (detecciones de pose usando heurísticas)
+docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic echo /pose/heuristic/detected'
+
+# 8. Monitorear /pose_heuristic/processed_image (imagen procesada con poses heurísticas)
+docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic echo /pose_heuristic/processed_image'
+
+# === POSE_PROCESSOR ===
+# 9. Monitorear /pose/detected (detecciones de pose fusionadas)
+docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic echo /pose/detected'

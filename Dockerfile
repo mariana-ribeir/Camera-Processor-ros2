@@ -10,8 +10,6 @@ RUN apt update && apt install -y \
     git wget curl \
     ros-jazzy-vision-opencv \
     ros-jazzy-rqt-image-view \
-    # try this
-    ros-jazzy-web-video-server \
     build-essential \
     libboost-all-dev \
     # GTK3 dependencies (works better in Docker than Qt6)
@@ -23,6 +21,11 @@ RUN apt update && apt install -y \
     libxrender1 \
     libx11-6 \
     x11-apps \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- 1.5. ROS WEB VIDEO SERVER ---
+RUN apt update && apt install -y \
+    ros-jazzy-web-video-server \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade setuptools to support --editable

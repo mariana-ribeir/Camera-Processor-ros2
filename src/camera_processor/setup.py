@@ -6,7 +6,7 @@ package_name = 'camera_processor'
 
 # Find all files in models and launch folders
 models_files = glob.glob(os.path.join('models', '*'))
-launch_files = glob.glob(os.path.join('launch', '*'))
+launch_files = [f for f in glob.glob(os.path.join('launch', '*')) if not os.path.basename(f).startswith('__')]
 
 # Build the data_files list
 data_files = [

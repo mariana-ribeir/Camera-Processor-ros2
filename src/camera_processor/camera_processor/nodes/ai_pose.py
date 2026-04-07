@@ -108,6 +108,8 @@ class IaPoseNode(Node):
         pose_array = PoseDetectionArray()
         pose_array.header.stamp = self.get_clock().now().to_msg()
 
+        processed_frame = frame.copy()  # Start with a copy of the original frame
+
         with torch.inference_mode(): 
             for det in detections:
                 x1 = max(0, int(det.x))
@@ -117,8 +119,14 @@ class IaPoseNode(Node):
                 crop = frame[y1:y2, x1:x2]
                 if crop.size == 0:
                     continue
-                processed_crop, poses = pose_process_frame_model(crop, self.model, self.get_logger())
-                for pose in poses:
+                annotated_crop, poses = pose_process_frame_model(crop, self.model, self.get_logger())
+                
+                # Insert the annotated crop back into the processed frame
+                processed_frame[y1:y2, x1:x2] = annotated_crop
+                
+                # Take only the first detected pose for this person to avoid duplicates
+                if poses:
+                    pose = poses[0]
                     pose_msg = PoseDetection()
                     pose_msg.id = det.id
                     pose_msg.pose = pose
@@ -127,7 +135,7 @@ class IaPoseNode(Node):
         self.pose_pub.publish(pose_array)
 
         if self.show_gui:
-            img_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+            img_msg = self.bridge.cv2_to_imgmsg(processed_frame, encoding="bgr8")
             self.image_pub.publish(img_msg)
 
         self.processing = False

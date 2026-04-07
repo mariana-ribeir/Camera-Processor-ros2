@@ -42,6 +42,9 @@ def pose_process_frame_model(frame, model, logger):
         # Create the visual frame with boxes drawn on it
         annotated_frame = r.plot()
 
+    # Remove duplicates to avoid multiple identical detections
+    detected_poses = list(set(detected_poses))
+
     return annotated_frame, detected_poses
 
 #------------------ H E U R I S T I C -----------------------------------------------------

@@ -1,5 +1,8 @@
 # Script para executar o sistema ROS2 Camera Processor
 # Executar a partir do diretório do projeto: .\run_system.ps1
+# Para usar GUI: .\run_system.ps1 -Gui
+
+param([switch]$Gui)
 
 Write-Host "Iniciando script para ROS2 Camera Processor..."
 
@@ -16,8 +19,18 @@ if (-not $imageExists) {
     Write-Host "Imagem já existe. Pulando construção."
 }
 
+# Determinar qual launch file usar
+if ($Gui) {
+    $launchFile = "launch.py"
+    Write-Host "Usando modo GUI."
+} else {
+    $launchFile = "launch_nogui.py"
+    Write-Host "Usando modo NoGUI."
+}
+
 # Passo 2: Construir e executar o contenedor com Docker Compose
 Write-Host "Executando contenedor com Docker Compose..."
+docker-compose down  # Asegurar que no haya contenedores previos corriendo
 docker-compose up -d
 
 # Esperar um pouco para que o contentor inicie
@@ -44,65 +57,51 @@ if ($containerStatus -notlike "*Up*") {
 Write-Host "Matando nodos existentes..."
 docker exec camera_processor_ws pkill -f "ros2 run" 2>$null
 
-# Passo 3: Lançar camera_simulator
-Write-Host "Lançando camera_simulator..."
-docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera camera_simulator'
-
-# Passo 4: Lançar color_processor
-Write-Host "Lançando color_processor..."
-docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor color_processor'
-
-# Passo 5: Lançar person_processor
-Write-Host "Lançando person_processor..."
-docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor person_processor'
-
-# Passo 6: Lançar heuristic_pose
-Write-Host "Lançando heuristic_pose..."
-docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor heuristic_pose'
-
-# Passo 7: Lançar ai_pose
-Write-Host "Lançando ai_pose..."
-docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor ai_pose'
-
-# Passo 8: Lançar pose_processor
-Write-Host "Lançando pose_processor..."
-docker exec -d camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 run camera_processor pose_processor'
+# Passo 3: Lançar o sistema usando launch
+Write-Host "Lançando o sistema com launch..."
+docker exec -d camera_processor_ws bash -lc "source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 launch camera_processor $launchFile"
 
 # Esperar um pouco para que os nós iniciem
 Start-Sleep -Seconds 10
 
 # Verificar se o contenedor ainda está rodando
 Write-Host "Verificando status do contenedor..."
-$containerStatus = docker ps --filter name=camera_ws --format "{{.Status}}"
+$containerStatus = docker ps --filter name=camera_processor_ws --format "{{.Status}}"
 if ($containerStatus -notlike "*Up*") {
     Write-Host "Erro: O contenedor parou de rodar. Verificando logs..."
-    docker logs camera_ws
+    docker logs camera_processor_ws
     Write-Host "Saindo do script."
     exit 1
 }
+
+# Web video server se inicia automaticamente con el launch file en modo GUI
 
 # Passo 9: Listar tópicos
 Write-Host "Listando tópicos..."
 docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic list'
 
-# Passo 10: Ouvir /person/count
-Write-Host "Ouvindo /person/count..."
-docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /person/count'
-
-# Passo 11: Ouvir /person/detected
+# Passo 10: Ouvir /person/detected
 Write-Host "Ouvindo /person/detected..."
 docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /person/detected'
 
-# Passo 12: Ouvir pose/ia/detected
-Write-Host "Ouvindo pose/ia/detected..."
-docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo pose/ia/detected'
+# Passo 11: Ouvir /person/detections
+Write-Host "Ouvindo /person/detections..."
+docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /person/detections'
 
-# Passo 13: Ouvir pose/heuristic/detected
-Write-Host "Ouvindo pose/heuristic/detected..."
-docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo pose/heuristic/detected'
+# Passo 12: Ouvir /pose/ia/detected
+Write-Host "Ouvindo /pose/ia/detected..."
+docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /pose/ia/detected'
+
+# Passo 13: Ouvir /pose/heuristic/detected
+Write-Host "Ouvindo /pose/heuristic/detected..."
+docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /pose/heuristic/detected'
 
 # Passo 14: Ouvir /pose/detected
 Write-Host "Ouvindo /pose/detected..."
 docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /pose/detected'
+
+if ($Gui) {
+    Write-Host "Modo GUI activado. El servidor web está disponible en http://localhost:8080"
+}
 
 Write-Host "Script concluído. O sistema deve estar a correr."

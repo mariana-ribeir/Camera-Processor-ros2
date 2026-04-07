@@ -105,6 +105,8 @@ class PersonProcessorNode(Node):
 
         # publish detections
         msg = PersonDetectionArray()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = "camera_frame"
         for det in detections:
             pid, x, y, w, h, confidence = det
             det_msg = PersonDetection()
@@ -113,6 +115,7 @@ class PersonProcessorNode(Node):
             det_msg.y = y
             det_msg.width = w
             det_msg.height = h
+            det_msg.confidence = confidence
             msg.detections.append(det_msg)
 
         self.detections_pub.publish(msg)
