@@ -67,6 +67,10 @@ class PoseProcessorNode(Node):
         Combines results from both sources. 
         Currently prioritizes AI if they disagree.
         """
+        if ai_pose is None:
+            return heuristic_pose
+        if heuristic_pose is None:
+            return ai_pose
         if ai_pose == heuristic_pose:
             return ai_pose
         return ai_pose  
@@ -75,28 +79,47 @@ class PoseProcessorNode(Node):
         if self.processing:
             return
 
-        if self.latest_ai_msg is None or self.latest_heuristic_msg is None:
+        if self.latest_ai_msg is None and self.latest_heuristic_msg is None:
             return
 
-        #  timestamp synchronization 
-        ai_time = self.latest_ai_msg.header.stamp
-        h_time = self.latest_heuristic_msg.header.stamp
+        if self.latest_ai_msg is None:
+            ai_msg = self.latest_heuristic_msg
+            heuristic_msg = self.latest_heuristic_msg
+        elif self.latest_heuristic_msg is None:
+            ai_msg = self.latest_ai_msg
+            heuristic_msg = self.latest_ai_msg
+        else:
+            #  timestamp synchronization 
+            ai_time = self.latest_ai_msg.header.stamp
+            h_time = self.latest_heuristic_msg.header.stamp
 
-        ai_sec = ai_time.sec + ai_time.nanosec * 1e-9
-        h_sec = h_time.sec + h_time.nanosec * 1e-9
+            ai_sec = ai_time.sec + ai_time.nanosec * 1e-9
+            h_sec = h_time.sec + h_time.nanosec * 1e-9
 
-        time_diff = abs(ai_sec - h_sec)
+            time_diff = abs(ai_sec - h_sec)
 
-        #if frames are more than 100ms apart, they are likely not the same frame
-        if time_diff > 0.1: 
-            self.get_logger().debug(f"Skipping unsynced frames: {time_diff:.3f}s")
-            return
+            #if frames are more than 200ms apart, they are likely not the same frame
+            if time_diff > 0.2: 
+                # Fallback: publish using only the newest source to avoid output stalls.
+                if ai_sec >= h_sec:
+                    ai_msg = self.latest_ai_msg
+                    heuristic_msg = None
+                    self.get_logger().debug(
+                        f"Unsynced frames ({time_diff:.3f}s), fallback to AI-only publish")
+                else:
+                    ai_msg = self.latest_heuristic_msg
+                    heuristic_msg = None
+                    self.get_logger().debug(
+                        f"Unsynced frames ({time_diff:.3f}s), fallback to Heuristic-only publish")
+            else:
+                ai_msg = self.latest_ai_msg
+                heuristic_msg = self.latest_heuristic_msg
 
         self.processing = True
 
         # prepare data 
-        ai_detections = self.latest_ai_msg.pose_detections
-        heuristic_detections = self.latest_heuristic_msg.pose_detections
+        ai_detections = ai_msg.pose_detections
+        heuristic_detections = heuristic_msg.pose_detections if heuristic_msg is not None else []
 
         heuristic_dict = {p.id: p.pose for p in heuristic_detections}
         final_poses = []
