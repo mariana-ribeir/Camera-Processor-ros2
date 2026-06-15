@@ -1,10 +1,9 @@
 import rclpy
 import os
-import torch
 import threading
 from rclpy.node import Node
 from sensor_msgs.msg import Image
-from std_msgs.msg import Bool, Int32
+from std_msgs.msg import Bool
 from cv_bridge import CvBridge
 from ament_index_python.packages import get_package_share_directory
 from rclpy.executors import MultiThreadedExecutor
@@ -18,9 +17,9 @@ from camera_processor.helpers.person_detector import (
 """
 ROS2 Node for real-time human detection and tracking.
 
-This node acts as the primary detector for the system. It processes raw camera 
-images using a YOLOv8-pose model to identify people, generates tracking IDs, 
-and provides bounding box coordinates for use by downstream pose-estimation nodes.
+This node acts as the primary detector for the system. It processes raw camera
+images with a YOLO ONNX model and assigns stable IDs using shirt-color + IoU
+tracking logic from the helper pipeline.
 
 Subscriptions:
     /camera/image_raw (sensor_msgs/Image): The raw video stream input.
@@ -34,7 +33,7 @@ Parameters:
     show_gui (bool): If True, publishes the annotated visualization frame.
 
 Attributes:
-    model (YOLO): YOLOv8-pose model used as a person detector.
+    model (YOLO): YOLO ONNX model used as a person detector.
     bridge (CvBridge): Utility for ROS-to-OpenCV image conversion.
     last_frame (ndarray): The most recent frame stored for the processing timer.
     detections_pub (rclpy.Publisher): Publisher for the structured detection data.
@@ -55,10 +54,10 @@ class PersonProcessorNode(Node):
 
         # path setup for model
         pkg_share = get_package_share_directory('camera_processor')
-        model_path = os.path.join(pkg_share, 'models', 'yolov8n-pose.pt')
+        model_path = os.path.join(pkg_share, 'models', 'yolo26n-pose.onnx')
 
         # load the model
-        self.get_logger().info(f"Loading YOLO model from {model_path}...")
+        self.get_logger().info(f"Loading YOLO Pose ONNX model from {model_path}...")
         self.model = YOLO(model_path)
 
         #publishers for detection and count
@@ -100,32 +99,32 @@ class PersonProcessorNode(Node):
         threading.Thread(target=self._process_frame, args=(frame,), daemon=True).start()
 
     def _process_frame(self, frame):
-        with torch.inference_mode():
-            processed_frame, people_detected, count, detections = person_process_frame(frame, self.model)
+        try:
+            processed_frame, people_detected, _, detections = person_process_frame(frame, self.model)
 
-        # publish detections
-        msg = PersonDetectionArray()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = "camera_frame"
-        for det in detections:
-            pid, x, y, w, h, confidence = det
-            det_msg = PersonDetection()
-            det_msg.id = pid
-            det_msg.x = x
-            det_msg.y = y
-            det_msg.width = w
-            det_msg.height = h
-            det_msg.confidence = confidence
-            msg.detections.append(det_msg)
+            # publish detections
+            msg = PersonDetectionArray()
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.header.frame_id = "camera_frame"
+            for det in detections:
+                pid, x, y, w, h, confidence = det
+                det_msg = PersonDetection()
+                det_msg.id = pid
+                det_msg.x = x
+                det_msg.y = y
+                det_msg.width = w
+                det_msg.height = h
+                det_msg.confidence = confidence
+                msg.detections.append(det_msg)
 
-        self.detections_pub.publish(msg)
-        self.detected_pub.publish(Bool(data=bool(people_detected)))
+            self.detections_pub.publish(msg)
+            self.detected_pub.publish(Bool(data=bool(people_detected)))
 
-        if self.show_gui:
-            img_msg = self.bridge.cv2_to_imgmsg(processed_frame, encoding="bgr8")
-            self.image_pub.publish(img_msg)
-
-        self.processing = False
+            if self.show_gui:
+                img_msg = self.bridge.cv2_to_imgmsg(processed_frame, encoding="bgr8")
+                self.image_pub.publish(img_msg)
+        finally:
+            self.processing = False
 
 def main(args=None):
     rclpy.init(args=args)

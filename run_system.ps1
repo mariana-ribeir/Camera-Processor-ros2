@@ -2,9 +2,35 @@
 # Executar a partir do diretório do projeto: .\run_system.ps1
 # Para usar GUI: .\run_system.ps1 -Gui
 
-param([switch]$Gui)
+param([switch]$Gui, [string]$OnnxRuntime = "auto", [switch]$ForceBuild)
 
 Write-Host "Iniciando script para ROS2 Camera Processor..."
+
+# Validar runtime ONNX solicitado
+if ($OnnxRuntime -notin @("auto", "cpu", "gpu")) {
+    Write-Host "Erro: valor inválido para -OnnxRuntime. Use 'auto', 'cpu' ou 'gpu'."
+    exit 1
+}
+
+# Se não foi escolhido manualmente, detectar GPU NVIDIA no host.
+if ($OnnxRuntime -eq "auto") {
+    $gpuDetected = $false
+    $nvidiaSmiCmd = Get-Command nvidia-smi -ErrorAction SilentlyContinue
+    if ($nvidiaSmiCmd) {
+        nvidia-smi -L *> $null
+        if ($LASTEXITCODE -eq 0) {
+            $gpuDetected = $true
+        }
+    }
+
+    if ($gpuDetected) {
+        $OnnxRuntime = "gpu"
+        Write-Host "GPU NVIDIA detectada. Selecionado OnnxRuntime=gpu."
+    } else {
+        $OnnxRuntime = "cpu"
+        Write-Host "GPU NVIDIA não detectada. Selecionado OnnxRuntime=cpu."
+    }
+}
 
 # Mudar para o diretório do projeto (ajusta se necessário)
 Set-Location -Path $PSScriptRoot
@@ -12,11 +38,32 @@ Set-Location -Path $PSScriptRoot
 # Passo 1: Verificar e construir imagem Docker se necessário
 Write-Host "Verificando imagem Docker..."
 $imageExists = docker images -q camera-processor:jazzy
-if (-not $imageExists) {
-    Write-Host "Imagem não encontrada. Construindo imagem Docker..."
-    docker build -t camera-processor:jazzy .
+$needBuild = $ForceBuild -or -not $imageExists
+
+# Se a imagem existe e não foi pedido ForceBuild, valida dependências ONNX.
+if (-not $needBuild) {
+    Write-Host "Validando dependências ONNX na imagem existente..."
+    if ($OnnxRuntime -eq "gpu") {
+        docker run --rm camera-processor:jazzy bash -lc "python3 -m pip show onnxruntime-gpu >/dev/null 2>&1"
+    } else {
+        docker run --rm camera-processor:jazzy bash -lc "python3 -c 'import onnxruntime' >/dev/null 2>&1"
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Dependência ONNX ausente/incompatível na imagem atual. Será feita reconstrução automática."
+        $needBuild = $true
+    }
+}
+
+if ($needBuild) {
+    Write-Host "Construindo imagem Docker (OnnxRuntime=$OnnxRuntime)..."
+    docker build --build-arg ONNXRUNTIME=$OnnxRuntime -t camera-processor:jazzy .
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Erro na construção da imagem Docker."
+        exit 1
+    }
 } else {
-    Write-Host "Imagem já existe. Pulando construção."
+    Write-Host "Imagem já existe. Pulando construção. Use -ForceBuild para forzar reconstrucción."
 }
 
 # Determinar qual launch file usar

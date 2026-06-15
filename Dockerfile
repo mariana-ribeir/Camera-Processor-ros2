@@ -41,9 +41,23 @@ ENV OPENCV_VIDEOIO_PRIORITY_GSTREAMER=0
 
 # --- 2. DEPENDÊNCIAS PYTHON ---
 RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu --break-system-packages
-RUN pip3 install ultralytics torchreid gdown tensorboard scipy scikit-learn lap \
-    --break-system-packages \
-    --ignore-installed numpy
+ARG ONNXRUNTIME=cpu
+ENV ONNXRUNTIME=${ONNXRUNTIME}
+
+# Install Python dependencies. Choose ONNXRUNTIME at build time via --build-arg.
+# Valid values: 'cpu' (default) or 'gpu'.
+RUN if [ "$ONNXRUNTIME" = "gpu" ] ; then \
+        pip3 install --break-system-packages --ignore-installed numpy onnxruntime-gpu ultralytics torchreid gdown tensorboard scipy scikit-learn lap ; \
+    else \
+        pip3 install --break-system-packages --ignore-installed numpy onnxruntime ultralytics torchreid gdown tensorboard scipy scikit-learn lap ; \
+    fi
+
+# NOTE: For CUDA (x86_64) use `--build-arg ONNXRUNTIME=gpu` and ensure the
+# host/container CUDA toolkit and drivers match the `onnxruntime-gpu` wheel.
+# For NVIDIA Jetson (ARM) you must use a Jetson-compatible ONNX Runtime
+# wheel (or build from source). Installing both CPU and GPU wheels together
+# may cause package conflicts, so the Dockerfile installs only the selected
+# variant at build time.
 
 # --- 3. FIX CV_BRIDGE ---
 WORKDIR /opt/cv_bridge_build

@@ -1,478 +1,461 @@
 import cv2
 import numpy as np
-import torch
-from typing import Optional
-import scipy.optimize
-from sklearn.metrics.pairwise import cosine_similarity
+from collections import deque
 
-from camera_processor.helpers.person_db import PersonDatabase
-_PERSON_DB = PersonDatabase()
-
-def reset_person_database() -> None:
-    global _PERSON_DB
-    _PERSON_DB.clear()
-
-# Configuraciones para ReID e IoU
-_USE_REID = True  # Cambia a False para usar solo skeleton
-_REID_MODEL_NAME = 'osnet_x0_25'
-_REID_SIZE = 256
-_SIMILARITY_THRESHOLD = 0.75
-_IOU_THRESHOLD = 0.95
-_MAX_AGE = 1
-_FEATURE_HISTORY = 10
-_KEYPOINT_CONF_THRESHOLD = 0.4
+# Detection/tracking configuration
 DEFAULT_CONF = 0.40
-_REAPPEAR_THRESHOLD = 0.6
-_REID_THRESHOLD = 0.7
+IOU_THRESHOLD = 0.40
+MAX_TRACK_AGE = 30
+COLOR_HISTORY_LEN = 50
+COLOR_SWITCH_CONFIRM_FRAMES = 25
+COLOR_LOCK_MIN_STREAK = 8
+COLOR_MIN_COVERAGE = 0.15
+TORSO_CENTER_FRAC = 0.70
+KP_CONF_MIN = 0.50
 
-_FRAME_INDEX = 0  # Contador global de frames para ROS2
+KP_L_SHOULDER = 5
+KP_R_SHOULDER = 6
+KP_L_HIP = 11
+KP_R_HIP = 12
 
-# Modelo ReID
-_REID_MODEL = None
-if _USE_REID:
-    try:
-        import torchreid
-        _REID_MODEL = torchreid.models.build_model(name=_REID_MODEL_NAME, num_classes=1000, pretrained=True)
-        _REID_MODEL.eval()
-    except Exception as e:
-        print(f"ReID model not available: {e}. Falling back to skeleton features.")
-        _USE_REID = False
+KP_SKELETON = [
+    (5, 7), (7, 9),
+    (6, 8), (8, 10),
+    (5, 6), (11, 12),
+    (5, 11), (6, 12),
+    (11, 13), (13, 15),
+    (12, 14), (14, 16),
+    (0, 1), (0, 2),
+    (1, 3), (2, 4),
+]
 
-def get_similarity_threshold() -> float:
-    return _SIMILARITY_THRESHOLD
+# Fixed person IDs by shirt color
+COLOR_TO_ID = {
+    "RED": 1,
+    "ORANGE": 2,
+    "YELLOW": 3,
+    "GREEN": 3,
+    "BLUE": 5,
+}
 
+# HSV ranges for shirt-color detection
+HSV_RANGES = {
+    "RED": [((0, 120, 80), (5, 255, 255)), ((170, 120, 80), (180, 255, 255))],
+    "ORANGE": [((6, 120, 120), (18, 255, 255))],
+    "YELLOW": [((20, 50, 50), (85, 255, 255))],
+    "GREEN": [((20, 50, 50), (85, 255, 255))],
+    "BLUE": [((100, 120, 70), (128, 255, 255))],
+}
 
-def set_similarity_threshold(value: float) -> float:
-    global _SIMILARITY_THRESHOLD
-    _SIMILARITY_THRESHOLD = max(0.5, min(0.99, float(value)))
-    return _SIMILARITY_THRESHOLD
-
-
-def adjust_similarity_threshold(delta: float) -> float:
-    return set_similarity_threshold(_SIMILARITY_THRESHOLD + delta)
-
-def person_process_frame(frame, model):
-    global _FRAME_INDEX
-    _FRAME_INDEX += 1
-    results = model(frame, verbose=False, conf=DEFAULT_CONF)
-    annotated_frame = results[0].plot()
-    persistent_ids = set()
-    raw_people_count = 0
-    detections = []   # NEW
-
-    if results[0].boxes is not None and results[0].keypoints is not None:
-        boxes = results[0].boxes
-        keypoints_tensor = results[0].keypoints.data
-        raw_people_count = len(boxes)
-        det_features = []
-        det_boxes = []
-        for idx, box in enumerate(boxes):
-            x1, y1, x2, y2 = map(int, box.xyxy[0])
-            kpts_array = keypoints_tensor[idx].cpu().numpy()
-            # Extract features
-            if _USE_REID:
-                crop = frame[y1:y2, x1:x2]
-                feat = compute_reid_embedding(crop)
-            else:
-                feat = extract_skeleton_features(kpts_array)
-            det_features.append(feat)
-            det_boxes.append((x1, y1, x2, y2))
-        similarity_threshold = _REID_THRESHOLD if _USE_REID else _SIMILARITY_THRESHOLD
-        assigned_ids = assign_ids_greedy(
-            det_features=det_features,
-            det_boxes=det_boxes,
-            person_db=_PERSON_DB,
-            similarity_threshold=similarity_threshold,
-            iou_threshold=_IOU_THRESHOLD,
-            frame_index=_FRAME_INDEX,
-            max_age=_MAX_AGE,
-            feature_history=_FEATURE_HISTORY,
-            reappear_threshold=_REAPPEAR_THRESHOLD,
-            use_iou=True
-        )
-        for idx, pid in enumerate(assigned_ids):
-            x1, y1, x2, y2 = det_boxes[idx]
-            w = x2 - x1
-            h = y2 - y1
-            if pid is not None:
-                persistent_ids.add(pid)
-            display_id = pid if pid is not None else idx
-            # NEW: build detection
-            conf = float(boxes[idx].conf.cpu().numpy()[0])
-            detections.append((display_id, x1, y1, w, h, conf))
-            label = f'ID: {display_id}'
-            cv2.putText(
-                annotated_frame,
-                label,
-                (x1, y1 - 25),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1.5,
-                (0, 0, 0),
-                4
-            )
-            cv2.putText(
-                annotated_frame,
-                label,
-                (x1, y1 - 25),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1.5,
-                (255, 255, 255),
-                2
-            )
-    cv2.putText(
-        annotated_frame,
-        f'Unique IDs: {len(_PERSON_DB)}',
-        (10, 60),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (255, 255, 0),
-        2
-    )
-    threshold_type = 'ReID' if _USE_REID else 'Skeleton'
-    threshold_label = _REID_THRESHOLD if _USE_REID else _SIMILARITY_THRESHOLD
-    cv2.putText(
-        annotated_frame,
-        f'{threshold_type} Threshold: {threshold_label:.2f}',
-        (10, 90),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (0, 0, 0),
-        2
-    )
-    people_count = max(raw_people_count, len(persistent_ids))
-    people_detected = people_count > 0
-    return annotated_frame, people_detected, people_count, detections
+VIS_COLORS = {
+    "RED": (0, 0, 255),
+    "ORANGE": (0, 128, 255),
+    "YELLOW": (0, 255, 255),
+    "GREEN": (0, 255, 0),
+    "BLUE": (255, 0, 0),
+    "UNKNOWN": (140, 140, 140),
+}
 
 
-def extract_skeleton_features(keypoints: np.ndarray):
-    """
-    Extrai um descritor de características baseado nos keypoints do esqueleto.
+def compute_iou(box_a: tuple, box_b: tuple) -> float:
+    """Compute IoU between two boxes in (x1, y1, x2, y2) format."""
+    ax1, ay1, ax2, ay2 = box_a
+    bx1, by1, bx2, by2 = box_b
 
-    Normaliza por escala e orientação para robustez. Inclui comprimentos de ossos,
-    ângulos articulares e outras métricas.
+    inter_x1 = max(ax1, bx1)
+    inter_y1 = max(ay1, by1)
+    inter_x2 = min(ax2, bx2)
+    inter_y2 = min(ay2, by2)
 
-    Args:
-        keypoints (np.ndarray): Array de keypoints (17, 3) com x, y, conf.
-
-    Returns:
-        np.ndarray or None: Vetor de características normalizado, ou None se falhar.
-    """
-    conf_thr = _KEYPOINT_CONF_THRESHOLD
-    if keypoints is None or keypoints.shape[0] < 17:
-        return None
-
-    pts = keypoints[:, :2].astype(np.float32)
-    vis = keypoints[:, 2] > conf_thr
-
-    # Seleciona raiz (pelve) e escala (largura ombros/ ancas / torso)
-    def have(i):
-        return bool(vis[i])
-
-    def dist(a, b):
-        if have(a) and have(b):
-            return float(np.sqrt((pts[a][0] - pts[b][0]) ** 2 + (pts[a][1] - pts[b][1]) ** 2))
-        return None
-
-    # Raiz: centro das ancas se disponível, senão centro dos ombros, senão nariz
-    root = None
-    if have(11) and have(12):
-        root = (pts[11] + pts[12]) / 2.0
-    elif have(5) and have(6):
-        root = (pts[5] + pts[6]) / 2.0
-    elif have(0):
-        root = pts[0]
-    else:
-        return None
-
-    # Escala preferencial: largura dos ombros, depois ancas, depois altura do torso
-    scale_candidates = []
-    d_sh = dist(5, 6)
-    d_hip = dist(11, 12)
-    if d_sh: scale_candidates.append(d_sh)
-    if d_hip: scale_candidates.append(d_hip)
-    if have(5) and have(11):
-        scale_candidates.append(dist(5, 11))
-    if have(6) and have(12):
-        scale_candidates.append(dist(6, 12))
-    scale = None
-    if len(scale_candidates) > 0:
-        scale = float(np.median([s for s in scale_candidates if s is not None and s > 1e-3]))
-    if not scale or scale <= 1e-3:
-        # Fallback: max distância válida
-        dists = [dist(i, j) for i in range(17) for j in range(i + 1, 17)]
-        dists = [d for d in dists if d is not None]
-        if len(dists) == 0:
-            return None
-        scale = max(dists)
-    if scale <= 1e-3:
-        return None
-
-    # Coordenadas normalizadas centradas na raiz
-    norm = np.zeros((17, 2), dtype=np.float32)
-    for i in range(17):
-        if vis[i]:
-            norm[i] = (pts[i] - root) / scale
-        else:
-            norm[i] = np.array([0.0, 0.0])
-
-    # Comprimentos ósseos normalizados
-    bones = [
-        (5, 7), (7, 9),   # braço esq
-        (6, 8), (8, 10),  # braço dir
-        (11, 13), (13, 15),  # perna esq
-        (12, 14), (14, 16),  # perna dir
-        (5, 6), (11, 12),    # ombros, ancas
-        (5, 11), (6, 12)     # torso
-    ]
-    bone_lengths = []
-    for a, b in bones:
-        d = dist(a, b)
-        bone_lengths.append((d / scale) if d else 0.0)
-
-    # Ângulos nas articulações principais (cotovelo, joelho, ombro, anca)
-    def angle_at(a, b, c):
-        # ângulo em b formado por a-b-c (usa coords normalizadas)
-        va = norm[a] - norm[b]
-        vc = norm[c] - norm[b]
-        na = np.linalg.norm(va)
-        nc = np.linalg.norm(vc)
-        if na < 1e-6 or nc < 1e-6:
-            return 0.0, 0.0
-        va /= na; vc /= nc
-        cos_t = float(np.clip(np.dot(va, vc), -1.0, 1.0))
-        # Para continuidade adiciona sin com sinal usando produto cruzado 2D
-        sin_t = float(np.clip(va[0] * vc[1] - va[1] * vc[0], -1.0, 1.0))
-        return cos_t, sin_t
-
-    angle_triplets = [
-        (5, 7, 9), (6, 8, 10),    # cotovelos
-        (11, 13, 15), (12, 14, 16),  # joelhos
-        (11, 5, 7), (12, 6, 8),    # ombros com torso
-        (5, 11, 13), (6, 12, 14)   # ancas com pernas
-    ]
-    angle_feats = []
-    for a, b, c in angle_triplets:
-        cos_t, sin_t = angle_at(a, b, c)
-        angle_feats += [cos_t, sin_t]
-
-    # Orientação do tronco (vetor ombros) em cos/sin
-    orient_cos, orient_sin = 1.0, 0.0
-    if have(5) and have(6):
-        v = norm[6] - norm[5]
-        ang = np.arctan2(v[1], v[0])
-        orient_cos = float(np.cos(ang))
-        orient_sin = float(np.sin(ang))
-
-    # Visibilidade: proporção de pontos visíveis
-    vis_ratio = float(np.mean(vis.astype(np.float32)))
-
-    feat = np.array(bone_lengths + angle_feats + [orient_cos, orient_sin, vis_ratio], dtype=np.float32)
-    # Normaliza vetor final para estabilizar a similaridade coseno
-    n = np.linalg.norm(feat)
-    if n > 1e-6:
-        feat = feat / n
-    return feat
-
-def compute_reid_embedding(img_bgr: np.ndarray) -> Optional[np.ndarray]:
-    """
-    Computa embedding ReID usando o modelo CNN.
-
-    Args:
-        img_bgr: Imagem BGR do crop da pessoa.
-
-    Returns:
-        np.ndarray or None: Vetor de embedding normalizado.
-    """
-    if img_bgr is None or img_bgr.size == 0 or _REID_MODEL is None:
-        return None
-    try:
-        from torchvision import transforms
-    except ImportError:
-        return None
-    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-    # Resize cuadrado con pad
-    h, w = img_rgb.shape[:2]
-    scale = _REID_SIZE / max(h, w)
-    nh, nw = max(1, int(h * scale)), max(1, int(w * scale))
-    img_res = cv2.resize(img_rgb, (nw, nh), interpolation=cv2.INTER_AREA)
-    top = (_REID_SIZE - nh) // 2
-    bottom = _REID_SIZE - nh - top
-    left = (_REID_SIZE - nw) // 2
-    right = _REID_SIZE - nw - left
-    img_sq = cv2.copyMakeBorder(img_res, top, bottom, left, right, cv2.BORDER_CONSTANT, value=(0, 0, 0))
-    tfm = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
-    with torch.no_grad():
-        tensor = tfm(img_sq).unsqueeze(0)
-        feat = _REID_MODEL(tensor)
-        if isinstance(feat, (list, tuple)):
-            feat = feat[0] if len(feat) > 0 else feat
-        vec = feat.squeeze().detach().cpu().numpy().astype(np.float32)
-        n = np.linalg.norm(vec)
-        if n > 1e-6:
-            vec = vec / n
-        return vec
-    return None
-
-
-def assign_ids_greedy(det_features: list, det_boxes: list, person_db: PersonDatabase,
-                      similarity_threshold: float, iou_threshold: float, frame_index: int,
-                      max_age: int, feature_history: int, reappear_threshold: float = 0.6, counters: dict = None, use_iou: bool = True):
-    """
-    Atribui IDs a deteções usando um algoritmo greedy com etapas:
-    1. IoU (opcional): Matching por proximidade espacial.
-    2. Similaridade: Matching por embeddings (ReID ou esqueleto).
-    3. Reaparência: Reatribuição de IDs velhos com umbral baixo.
-
-    Args:
-        det_features: Lista de vetores de características por deteção.
-        det_boxes: Lista de caixas (x1,y1,x2,y2) por deteção.
-        person_db: Instância de PersonDatabase.
-        similarity_threshold: Umbral para matching por similaridade.
-        iou_threshold: Umbral para IoU.
-        frame_index: Índice do frame atual.
-        max_age: Máx frames para considerar IoU.
-        feature_history: Comprimento do histórico de features.
-        reappear_threshold: Umbral para reaparências.
-        counters: Dicionário para contar atribuições.
-        use_iou: Se usar IoU ou não.
-
-    Returns:
-        list: Lista de IDs atribuídos por deteção.
-    """
-    if counters is None:
-        counters = {}
-    counters.setdefault('iou_assignments', 0)
-    counters.setdefault('sim_assignments', 0)
-    counters.setdefault('reappear_assignments', 0)
-    assigned = [None] * len(det_features)
-    existing_ids = list(person_db.keys())
-
-    used_dets = set()
-    used_ids = set()
-
-    if use_iou:
-        # 1) Tentativa por IoU com históricos recentes
-        recent_ids = person_db.get_recent_ids(frame_index, max_age)
-        iou_pairs = []  # (sim, det_i, pid)
-        for i, box in enumerate(det_boxes):
-            for pid in recent_ids:
-                if pid in used_ids:
-                    continue
-                prev_box = person_db[pid]['bbox']
-                if prev_box is not None:
-                    iou_val = iou_xyxy(box, prev_box)
-                    if iou_val >= iou_threshold:
-                        iou_pairs.append((iou_val, i, pid))
-        iou_pairs.sort(key=lambda x: x[0], reverse=True)
-        for iou, det_i, pid in iou_pairs:
-            if det_i in used_dets or pid in used_ids:
-                continue
-            assigned[det_i] = pid
-            used_dets.add(det_i)
-            used_ids.add(pid)
-            counters['iou_assignments'] += 1
-
-    # 2) Emparelhamento por descritor (coseno) para os que restaram usando atribuição ótima
-    unmatched_dets = [i for i in range(len(det_features)) if i not in used_dets and det_features[i] is not None]
-    available_ids = [pid for pid in existing_ids if pid not in used_ids]
-    if unmatched_dets and available_ids:
-        # Criar matriz de custo
-        cost_matrix = np.full((len(unmatched_dets), len(available_ids)), np.inf)
-        det_to_idx = {det: idx for idx, det in enumerate(unmatched_dets)}
-        id_to_idx = {pid: idx for idx, pid in enumerate(available_ids)}
-        for i, feat in enumerate(det_features):
-            if i not in unmatched_dets or feat is None:
-                continue
-            for pid in available_ids:
-                ref = person_db[pid]['feat']
-                sim = float(cosine_similarity(feat.reshape(1, -1), ref.reshape(1, -1))[0][0])
-                if sim >= similarity_threshold:
-                    cost_matrix[det_to_idx[i], id_to_idx[pid]] = -sim  # negativo para minimização
-        # Resolver atribuição ótima
-        if np.any(np.isfinite(cost_matrix)):
-            try:
-                row_ind, col_ind = scipy.optimize.linear_sum_assignment(cost_matrix)
-                for r, c in zip(row_ind, col_ind):
-                    if cost_matrix[r, c] != np.inf:
-                        det_i = unmatched_dets[r]
-                        pid = available_ids[c]
-                        assigned[det_i] = pid
-                        used_dets.add(det_i)
-                        used_ids.add(pid)
-                        counters['sim_assignments'] += 1
-            except ValueError:
-                # Se a matriz for infactível (ex. filas sem matches), saltar atribuição
-                pass
-
-    # 2.5) Etapa de reaparência: emparelhar com IDs velhos usando similaridade alta
-    reappear_pairs = []
-    for i, feat in enumerate(det_features):
-        if assigned[i] is not None or feat is None:
-            continue
-        for pid in existing_ids:
-            if pid in used_ids:
-                continue
-            stored_feat = person_db[pid]['feat']
-            if stored_feat is not None:
-                sim = float(cosine_similarity(feat.reshape(1, -1), stored_feat.reshape(1, -1))[0][0])
-                if sim >= reappear_threshold:
-                    reappear_pairs.append((sim, i, pid))
-    reappear_pairs.sort(key=lambda x: x[0], reverse=True)
-    for sim, det_i, pid in reappear_pairs:
-        if assigned[det_i] is not None or pid in used_ids:
-            continue
-        assigned[det_i] = pid
-        used_ids.add(pid)
-        counters['reappear_assignments'] += 1
-
-    # 3) Atualiza tracks emparelhados
-    for i, pid in enumerate(assigned):
-        if pid is None:
-            continue
-        feat = det_features[i]
-        box = det_boxes[i]
-        person_db.update_person(pid, feat, box, frame_index)
-
-    # 4) Cria novos IDs para deteções não emparelhadas com descritor válido
-    for i, feat in enumerate(det_features):
-        if assigned[i] is None and feat is not None:
-            box = det_boxes[i]
-            assigned[i] = person_db.add_person(feat, box, frame_index, feature_history)
-
-    # 5) Incrementa misses para não emparelhados (opcional limpeza futura)
-    person_db.increment_misses(frame_index)
-
-    return assigned
-
-
-
-def iou_xyxy(a, b):
-    """
-    Calcula a Intersecção sobre União (IoU) entre duas caixas delimitadoras.
-
-    Args:
-        a, b: Tuplas (x1, y1, x2, y2) das caixas.
-
-    Returns:
-        float: Valor IoU entre 0 e 1.
-    """
-    xa1, ya1, xa2, ya2 = a
-    xb1, yb1, xb2, yb2 = b
-    inter_x1 = max(xa1, xb1)
-    inter_y1 = max(ya1, yb1)
-    inter_x2 = min(xa2, xb2)
-    inter_y2 = min(ya2, yb2)
-    iw = max(0, inter_x2 - inter_x1)
-    ih = max(0, inter_y2 - inter_y1)
-    inter = iw * ih
-    if inter <= 0:
+    inter_w = max(0, inter_x2 - inter_x1)
+    inter_h = max(0, inter_y2 - inter_y1)
+    inter_area = inter_w * inter_h
+    if inter_area <= 0:
         return 0.0
-    area_a = max(0, xa2 - xa1) * max(0, ya2 - ya1)
-    area_b = max(0, xb2 - xb1) * max(0, yb2 - yb1)
-    union = area_a + area_b - inter
+
+    area_a = max(0, ax2 - ax1) * max(0, ay2 - ay1)
+    area_b = max(0, bx2 - bx1) * max(0, by2 - by1)
+    union = area_a + area_b - inter_area
     if union <= 0:
         return 0.0
-    return float(inter / union)
+    return float(inter_area / union)
+
+
+def extract_upper_torso_roi(frame: np.ndarray, bbox: tuple, center_frac: float, keypoints=None):
+    """
+    Extract a central upper-body ROI from a person bounding box.
+
+    This works without keypoints/segmentation masks and is robust for ONNX
+    detector-only outputs.
+    """
+    h, w = frame.shape[:2]
+    x1, y1, x2, y2 = bbox
+
+    bw = x2 - x1
+    bh = y2 - y1
+    if bw <= 4 or bh <= 4:
+        return None, None
+
+    tx1 = ty1 = tx2 = ty2 = None
+
+    # Preferred ROI: torso box derived from shoulder/hip keypoints.
+    if keypoints is not None and len(keypoints) >= 13:
+        torso_kp_indices = [KP_L_SHOULDER, KP_R_SHOULDER, KP_L_HIP, KP_R_HIP]
+        valid_pts = [keypoints[i] for i in torso_kp_indices if keypoints[i][2] >= KP_CONF_MIN]
+        if len(valid_pts) >= 2:
+            pts = np.array([[k[0], k[1]] for k in valid_pts], dtype=np.float32)
+            x_min, y_min = pts.min(axis=0)
+            x_max, y_max = pts.max(axis=0)
+            tx1, ty1, tx2, ty2 = float(x_min), float(y_min), float(x_max), float(y_max)
+
+    # Fallback ROI: upper-mid bbox when keypoints are missing/unreliable.
+    if tx1 is None:
+        tx1 = x1 + int(0.20 * bw)
+        tx2 = x2 - int(0.20 * bw)
+        ty1 = y1 + int(0.12 * bh)
+        ty2 = y1 + int(0.55 * bh)
+
+    # Keep a centered fraction to reduce background/arms influence.
+    cx = (tx1 + tx2) / 2.0
+    cy = (ty1 + ty2) / 2.0
+    x_half = max(((tx2 - tx1) * center_frac) / 2.0, 8)
+    y_half = max(((ty2 - ty1) * center_frac) / 2.0, 8)
+
+    rx1 = int(np.clip(cx - x_half, 0, w - 1))
+    ry1 = int(np.clip(cy - y_half, 0, h - 1))
+    rx2 = int(np.clip(cx + x_half, 0, w - 1))
+    ry2 = int(np.clip(cy + y_half, 0, h - 1))
+
+    if rx2 <= rx1 or ry2 <= ry1:
+        return None, None
+
+    roi = frame[ry1:ry2, rx1:rx2]
+    return (roi if roi.size > 0 else None), (rx1, ry1, rx2, ry2)
+
+
+def detect_shirt_color(roi: np.ndarray) -> str:
+    """Detect dominant shirt color in torso ROI using HSV masks."""
+    if roi is None or roi.size == 0:
+        return "UNKNOWN"
+
+    blurred = cv2.GaussianBlur(roi, (5, 5), 0)
+    hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
+    total = hsv.shape[0] * hsv.shape[1]
+
+    pixel_counts = {}
+    for color_name, ranges in HSV_RANGES.items():
+        mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
+        for lo, hi in ranges:
+            mask |= cv2.inRange(
+                hsv,
+                np.array(lo, dtype=np.uint8),
+                np.array(hi, dtype=np.uint8),
+            )
+        pixel_counts[color_name] = int(np.count_nonzero(mask))
+
+    best_color = max(pixel_counts, key=pixel_counts.get)
+    if pixel_counts[best_color] < total * COLOR_MIN_COVERAGE:
+        return "UNKNOWN"
+    return best_color
+
+
+class ColorStabilizer:
+    """Temporal voting to stabilize color labels per track."""
+
+    def __init__(self, history_len: int = COLOR_HISTORY_LEN):
+        self._history_len = history_len
+        self._histories = {}
+
+    def update(self, track_id: int, raw_color: str) -> str:
+        if track_id not in self._histories:
+            self._histories[track_id] = deque(maxlen=self._history_len)
+        self._histories[track_id].append(raw_color)
+
+        counts = {}
+        for color in self._histories[track_id]:
+            counts[color] = counts.get(color, 0) + 1
+
+        valid = {k: v for k, v in counts.items() if k != "UNKNOWN"}
+        return max(valid, key=valid.get) if valid else "UNKNOWN"
+
+    def force_color(self, track_id: int, color: str) -> str:
+        self._histories[track_id] = deque([color], maxlen=self._history_len)
+        return color
+
+    def remove_stale(self, active_ids: set) -> None:
+        for track_id in list(self._histories.keys()):
+            if track_id not in active_ids:
+                del self._histories[track_id]
+
+
+class SimpleTracker:
+    """IoU-based lightweight tracker with per-track color memory."""
+
+    def __init__(self):
+        self._tracks = {}
+        self._next_id = 1
+
+    def update(self, detections: list, frame_idx: int) -> list:
+        used_tracks = set()
+        results = []
+
+        for det in detections:
+            best_tid = None
+            best_iou = 0.0
+
+            for tid, track in self._tracks.items():
+                if tid in used_tracks:
+                    continue
+                iou = compute_iou(det["bbox"], track["bbox"])
+                if iou > best_iou:
+                    best_iou = iou
+                    best_tid = tid
+
+            if best_tid is not None and best_iou >= IOU_THRESHOLD:
+                prev_best_color = self._tracks[best_tid].get("best_color", "UNKNOWN")
+                self._tracks[best_tid]["bbox"] = det["bbox"]
+                self._tracks[best_tid]["last_seen"] = frame_idx
+                used_tracks.add(best_tid)
+                results.append((det, best_tid, prev_best_color, best_iou))
+            else:
+                tid = self._next_id
+                self._next_id += 1
+                self._tracks[tid] = {
+                    "bbox": det["bbox"],
+                    "last_seen": frame_idx,
+                    "best_color": "UNKNOWN",
+                    "pending_color": None,
+                    "pending_count": 0,
+                    "best_color_streak": 0,
+                }
+                used_tracks.add(tid)
+                results.append((det, tid, "UNKNOWN", 0.0))
+
+        for tid in list(self._tracks.keys()):
+            if frame_idx - self._tracks[tid]["last_seen"] > MAX_TRACK_AGE:
+                del self._tracks[tid]
+
+        return results
+
+    def set_track_color(self, tid: int, color: str) -> None:
+        if tid not in self._tracks:
+            return
+        prev = self._tracks[tid].get("best_color", "UNKNOWN")
+        if color == prev:
+            self._tracks[tid]["best_color_streak"] = self._tracks[tid].get("best_color_streak", 0) + 1
+        else:
+            self._tracks[tid]["best_color_streak"] = 1 if color in COLOR_TO_ID else 0
+        self._tracks[tid]["best_color"] = color
+
+    def apply_color_memory(self, tid: int, raw_color: str, matched_iou: float) -> str:
+        track = self._tracks.get(tid)
+        if track is None:
+            return raw_color
+
+        prev_color = track.get("best_color", "UNKNOWN")
+        prev_streak = track.get("best_color_streak", 0)
+
+        if prev_color not in COLOR_TO_ID:
+            track["pending_color"] = None
+            track["pending_count"] = 0
+            return raw_color
+
+        if matched_iou < IOU_THRESHOLD:
+            track["pending_color"] = None
+            track["pending_count"] = 0
+            return raw_color
+
+        if raw_color == "UNKNOWN":
+            return prev_color
+
+        if raw_color == prev_color:
+            track["pending_color"] = None
+            track["pending_count"] = 0
+            return prev_color
+
+        pending_color = track.get("pending_color")
+        pending_count = track.get("pending_count", 0)
+        if raw_color == pending_color:
+            pending_count += 1
+        else:
+            pending_color = raw_color
+            pending_count = 1
+
+        track["pending_color"] = pending_color
+        track["pending_count"] = pending_count
+
+        required = COLOR_SWITCH_CONFIRM_FRAMES
+        if prev_streak >= COLOR_LOCK_MIN_STREAK:
+            required += 5
+
+        if pending_count >= required:
+            track["pending_color"] = None
+            track["pending_count"] = 0
+            return raw_color
+
+        return prev_color
+
+    def active_ids(self) -> set:
+        return set(self._tracks.keys())
+
+
+def resolve_unique_ids(candidates: list) -> dict:
+    """Ensure one fixed color-ID winner per color in the current frame."""
+    by_color = {}
+    for item in candidates:
+        color = item["stable_color"]
+        if color not in COLOR_TO_ID:
+            continue
+        x1, y1, x2, y2 = item["det"]["bbox"]
+        conf = float(item["det"].get("conf", 0.0))
+        area = max(1, (x2 - x1) * (y2 - y1))
+        score = (conf, area)
+        by_color.setdefault(color, []).append((score, item["tid"]))
+
+    final_by_tid = {item["tid"]: item["stable_color"] for item in candidates}
+
+    for color, scored_tids in by_color.items():
+        scored_tids.sort(key=lambda x: x[0], reverse=True)
+        winner_tid = scored_tids[0][1]
+        for _, tid in scored_tids[1:]:
+            if tid != winner_tid:
+                final_by_tid[tid] = "UNKNOWN"
+
+    return final_by_tid
+
+
+def draw_annotations(frame: np.ndarray, det: dict, label_color: str, torso_rect) -> None:
+    """Draw bbox, torso ROI, and final ID-color label on frame."""
+    x1, y1, x2, y2 = det["bbox"]
+    color = VIS_COLORS.get(label_color, VIS_COLORS["UNKNOWN"])
+
+    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+
+    keypoints = det.get("keypoints")
+    if keypoints is not None and len(keypoints) >= 17:
+        for a, b in KP_SKELETON:
+            if keypoints[a][2] >= KP_CONF_MIN and keypoints[b][2] >= KP_CONF_MIN:
+                p1 = (int(keypoints[a][0]), int(keypoints[a][1]))
+                p2 = (int(keypoints[b][0]), int(keypoints[b][1]))
+                cv2.line(frame, p1, p2, color, 2)
+
+        for k in keypoints:
+            if k[2] >= KP_CONF_MIN:
+                cv2.circle(frame, (int(k[0]), int(k[1])), 4, (255, 255, 255), -1)
+                cv2.circle(frame, (int(k[0]), int(k[1])), 4, color, 1)
+
+    if torso_rect is not None:
+        tx1, ty1, tx2, ty2 = torso_rect
+        cv2.rectangle(frame, (tx1, ty1), (tx2, ty2), (0, 220, 220), 1)
+
+    pid = COLOR_TO_ID.get(label_color)
+    conf = det.get("conf", 0.0)
+    base = f"ID {pid} - {label_color}" if pid is not None else label_color
+    label = f"{base} YOLO: {conf * 100:.0f}%"
+    y_lbl = max(y1 - 8, 12)
+    cv2.putText(frame, label, (x1, y_lbl), cv2.FONT_HERSHEY_SIMPLEX, 0.70, (0, 0, 0), 3)
+    cv2.putText(frame, label, (x1, y_lbl), cv2.FONT_HERSHEY_SIMPLEX, 0.70, color, 2)
+
+
+_TRACKER = SimpleTracker()
+_STABILIZER = ColorStabilizer()
+_FRAME_INDEX = 0
+
+
+def reset_person_database() -> None:
+    """Compatibility entrypoint used by previous pipeline."""
+    global _TRACKER, _STABILIZER, _FRAME_INDEX
+    _TRACKER = SimpleTracker()
+    _STABILIZER = ColorStabilizer()
+    _FRAME_INDEX = 0
+
+
+def person_process_frame(frame, model):
+    """
+    Process a frame with YOLO ONNX detections and color-based identity assignment.
+
+    Returns:
+        annotated_frame, people_detected, people_count, detections
+        detections item format: (id, x, y, w, h, confidence)
+    """
+    global _FRAME_INDEX
+    _FRAME_INDEX += 1
+
+    results = model(frame, verbose=False, conf=DEFAULT_CONF, classes=[0])
+    annotated_frame = frame.copy()
+    detections = []
+
+    keypoints_data = None
+    if results and len(results) > 0 and getattr(results[0], "keypoints", None) is not None:
+        if getattr(results[0].keypoints, "data", None) is not None:
+            keypoints_data = results[0].keypoints.data
+
+    if results and results[0].boxes is not None:
+        for idx, box in enumerate(results[0].boxes):
+            x1, y1, x2, y2 = box.xyxy[0].tolist()
+            x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+            if x2 <= x1 or y2 <= y1:
+                continue
+
+            conf = float(box.conf[0].item()) if box.conf is not None else 0.0
+            kpts = None
+            if keypoints_data is not None and idx < len(keypoints_data):
+                kpts_t = keypoints_data[idx]
+                if hasattr(kpts_t, "cpu"):
+                    kpts = kpts_t.cpu().numpy().astype(np.float32)
+                else:
+                    kpts = np.array(kpts_t, dtype=np.float32)
+            detections.append({
+                "bbox": (x1, y1, x2, y2),
+                "conf": conf,
+                "keypoints": kpts,
+            })
+
+    tracked = _TRACKER.update(detections, _FRAME_INDEX)
+    _STABILIZER.remove_stale(_TRACKER.active_ids())
+
+    candidates = []
+    for det, tid, prev_best_color, matched_iou in tracked:
+        roi, torso_rect = extract_upper_torso_roi(frame, det["bbox"], TORSO_CENTER_FRAC, det.get("keypoints"))
+        detected_color = detect_shirt_color(roi)
+        raw_color = _TRACKER.apply_color_memory(tid, detected_color, matched_iou)
+
+        confirmed_color_change = (
+            prev_best_color in COLOR_TO_ID
+            and raw_color in COLOR_TO_ID
+            and raw_color != prev_best_color
+        )
+
+        if confirmed_color_change:
+            stable_color = _STABILIZER.force_color(tid, raw_color)
+        else:
+            stable_color = _STABILIZER.update(tid, raw_color)
+
+        _TRACKER.set_track_color(tid, stable_color)
+        candidates.append({
+            "det": det,
+            "tid": tid,
+            "torso_rect": torso_rect,
+            "stable_color": stable_color,
+        })
+
+    final_by_tid = resolve_unique_ids(candidates)
+    ros_detections = []
+
+    for item in candidates:
+        det = item["det"]
+        x1, y1, x2, y2 = det["bbox"]
+        w = x2 - x1
+        h = y2 - y1
+        confidence = float(det.get("conf", 0.0))
+
+        final_color = final_by_tid.get(item["tid"], "UNKNOWN")
+        draw_annotations(annotated_frame, det, final_color, item["torso_rect"])
+
+        # Keep fixed ID by color when possible. If unknown, publish sentinel 0.
+        person_id = COLOR_TO_ID.get(final_color, 0)
+        ros_detections.append((person_id, x1, y1, w, h, confidence))
+
+    people_detected = len(ros_detections) > 0
+    people_count = len(ros_detections)
+    return annotated_frame, people_detected, people_count, ros_detections

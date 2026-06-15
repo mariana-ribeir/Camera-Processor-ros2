@@ -57,7 +57,7 @@ def main(args=None):
     #Define the name of the folder of videos data
     pkg_share = get_package_share_directory('camera')
     data_dir = os.path.join(pkg_share, 'data')
-    video=os.path.join(data_dir, 'builder_1.mp4')
+    video=os.path.join(data_dir, 'TEST3.mp4')
 
     #Create the node
     node = CameraSimulator(video)
