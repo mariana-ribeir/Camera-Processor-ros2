@@ -47,7 +47,7 @@ class IaPoseNode(Node):
         
         # load the model
         pkg_share = get_package_share_directory('camera_processor')
-        model_path = os.path.join(pkg_share, 'models', 'best.pt')
+        model_path = os.path.join(pkg_share, 'models', 'best.onnx')
         self.get_logger().info(f"Loading YOLO model from {model_path}...")
         self.model = YOLO(model_path)
 
@@ -58,7 +58,7 @@ class IaPoseNode(Node):
 
         #ROS
         self.bridge = CvBridge()
-        self.create_timer(0.05, self.process)
+        self.create_timer(0.05, self.process)   # Check for new data every 50ms
 
         if self.show_gui:
             self.image_pub = self.create_publisher(Image, 'pose/ia/processed_image', 1)

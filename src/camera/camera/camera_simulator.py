@@ -23,7 +23,7 @@ class CameraSimulator(Node):
         super().__init__('camera_simulator')
         self.get_logger().info("Node 'camera_simulator' started!")
         self.publisher_ = self.create_publisher(Image, '/camera/image_raw', 1)
-        self.timer = self.create_timer(0.1, self.timer_callback)  # ~10 FPS, publish every 0.1s
+        self.timer = self.create_timer(0.1, self.timer_callback)  # 0.66~15 0.1~10 FPS, publish every 0.1s
         self.bridge = CvBridge()
 
         # Open video (0 = webcam, ou "video.mp4")

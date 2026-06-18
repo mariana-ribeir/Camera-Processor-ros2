@@ -102,6 +102,9 @@ class PersonProcessorNode(Node):
         try:
             processed_frame, people_detected, _, detections = person_process_frame(frame, self.model)
 
+            # Sort detections by ID to keep the output message order consistent
+            detections.sort(key=lambda x: x[0])
+
             # publish detections
             msg = PersonDetectionArray()
             msg.header.stamp = self.get_clock().now().to_msg()

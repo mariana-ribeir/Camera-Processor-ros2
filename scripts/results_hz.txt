@@ -1,0 +1,56 @@
+Monitor run: 2026-06-18T14:26:25.7185660+01:00
+Duration per topic: 20 seconds
+Container: camera_processor_ws
+
+=== 2026-06-18T14:26:25.7587290+01:00 ===
+Topic: /camera/image_raw
+average rate: 6.479
+	min: 0.030s max: 0.334s std dev: 0.11517s window: 7
+average rate: 6.704
+	min: 0.030s max: 0.335s std dev: 0.10234s window: 14
+average rate: 6.398
+	min: 0.030s max: 0.365s std dev: 0.09817s window: 21
+average rate: 6.725
+	min: 0.030s max: 0.365s std dev: 0.09110s window: 29
+average rate: 7.521
+	min: 0.030s max: 0.365s std dev: 0.08918s window: 40
+average rate: 7.571
+	min: 0.030s max: 0.437s std dev: 0.09364s window: 51
+average rate: 7.482
+	min: 0.030s max: 0.437s std dev: 0.09052s window: 58
+average rate: 7.496
+	min: 0.020s max: 0.468s std dev: 0.09726s window: 66
+average rate: 7.371
+	min: 0.020s max: 0.468s std dev: 0.09813s window: 73
+average rate: 7.670
+	min: 0.020s max: 0.468s std dev: 0.09367s window: 84
+average rate: 8.020
+	min: 0.020s max: 0.468s std dev: 0.08980s window: 96
+average rate: 8.131
+	min: 0.020s max: 0.468s std dev: 0.08709s window: 106
+average rate: 8.380
+	min: 0.020s max: 0.468s std dev: 0.08446s window: 118
+
+=== 2026-06-18T14:26:48.6900316+01:00 ===
+Topic: /person/processed_image
+average rate: 2.410
+	min: 0.313s max: 0.564s std dev: 0.09278s window: 4
+average rate: 1.369
+	min: 0.313s max: 1.994s std dev: 0.63685s window: 5
+average rate: 1.246
+	min: 0.313s max: 1.994s std dev: 0.55633s window: 7
+average rate: 1.509
+	min: 0.307s max: 1.994s std dev: 0.51237s window: 10
+average rate: 1.590
+	min: 0.307s max: 1.994s std dev: 0.46180s window: 13
+average rate: 1.608
+	min: 0.306s max: 1.994s std dev: 0.44149s window: 15
+average rate: 1.712
+	min: 0.306s max: 1.994s std dev: 0.41185s window: 18
+average rate: 1.813
+	min: 0.303s max: 1.994s std dev: 0.38987s window: 21
+average rate: 1.781
+	min: 0.277s max: 1.994s std dev: 0.40055s window: 24
+
+=== 2026-06-18T14:27:11.2205746+01:00 ===
+Topic: /pose/ia/processed_image

@@ -15,7 +15,7 @@ from camera_interfaces.msg import PersonDetectionArray, PoseDetectionArray, Pose
 ROS2 Node for heuristic human pose detection.
 
 This node synchronizes raw camera images with person detection data. It uses 
-a YOLOv8-pose model to extract skeletal keypoints and maps them to existing 
+a YOLO26-pose model to extract skeletal keypoints and maps them to existing 
 person IDs provided by an external detection node.
 
 Subscriptions:
@@ -40,7 +40,7 @@ class HeuristicPoseNode(Node):
         self.show_gui = self.get_parameter('show_gui').value
 
         pkg_share = get_package_share_directory('camera_processor')
-        model_path = os.path.join(pkg_share, 'models', 'yolov8n-pose.pt')
+        model_path = os.path.join(pkg_share, 'models', 'yolo26n-pose.onnx')
 
         # load the model
         self.model = YOLO(model_path)
