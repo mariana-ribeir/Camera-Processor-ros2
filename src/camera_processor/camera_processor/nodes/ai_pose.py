@@ -58,7 +58,7 @@ class IaPoseNode(Node):
 
         #ROS
         self.bridge = CvBridge()
-        self.create_timer(0.05, self.process)   # Check for new data every 50ms
+        #self.create_timer(0.05, self.process)   # Check for new data every 50ms
 
         if self.show_gui:
             self.image_pub = self.create_publisher(Image, 'pose/ia/processed_image', 1)
@@ -88,6 +88,8 @@ class IaPoseNode(Node):
     
     def image_callback(self, msg):
         self.last_frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        self.process()
+
 
     def detections_callback(self, msg):
         self.last_detections = msg.detections

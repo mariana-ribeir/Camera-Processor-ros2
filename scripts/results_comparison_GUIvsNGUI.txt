@@ -1,0 +1,23 @@
+COMPARISON OF ROS2 TOPIC RATES (HZ)
+====================================
+GUI File: scripts/results_hz_GUI.txt
+NoGUI File: scripts/results_hz_NGUI.txt
+
+Topic                                    | GUI (Hz)   | NoGUI (Hz) | Diff (Hz)  | Diff (%)   | Winner    
+---------------------------------------------------------------------------------------------------------
+/camera/image_raw                        | 8.262      | 8.442      | 0.181      | 2.2       % | NoGUI     
+/person/detected                         | 2.511      | 2.862      | 0.351      | 14.0      % | NoGUI     
+/person/detections                       | 2.210      | 2.733      | 0.523      | 23.7      % | NoGUI     
+/person/processed_image                  | 2.653      | 0.000      | -2.653     | N/A         | N/A       
+/pose/detected                           | 19.996     | 20.000     | 0.004      | 0.0       % | Equal     
+/pose/heuristic/detected                 | 1.873      | 2.227      | 0.354      | 18.9      % | NoGUI     
+/pose/ia/detected                        | 1.822      | 1.813      | -0.008     | -0.5      % | Equal     
+/pose/ia/processed_image                 | 1.405      | 0.000      | -1.405     | N/A         | N/A       
+/pose_heuristic/processed_image          | 2.080      | 0.000      | -2.080     | N/A         | N/A       
+---------------------------------------------------------------------------------------------------------
+
+OVERALL SUMMARY:
+Average GUI Hz: 6.112
+Average NoGUI Hz: 6.346
+Overall improvement: 0.234 Hz (3.8%)
+Conclusion: NoGUI was 3.8% better on average (0.234 Hz more).

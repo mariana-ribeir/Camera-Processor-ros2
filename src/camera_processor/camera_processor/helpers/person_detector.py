@@ -5,6 +5,15 @@ from collections import deque
 # Detection/tracking configuration
 DEFAULT_CONF = 0.50
 
+#COLOR_HISTORY_LEN = 30 # Aumentado: más inercia para aguantar giros de la persona
+#TORSO_CENTER_FRAC = 0.70 # fracción central del torso a analizar (evita brazos/fondo)
+#MAX_TRACK_AGE = 5 # Aumentado: permite estar 20 segundos sin ver a la persona antes de borrarla
+#IOU_THRESHOLD = 0.90 # Reducido para que, a pocos FPS, no pierda el ID si la persona se mueve mucho
+#COLOR_SWITCH_CONFIRM_FRAMES = 12 # MUY IMPORTANTE: Se necesitan 4 segundos de ver otro color para cambiar
+#COLOR_LOCK_MIN_STREAK = 15 # si un color lleva tiempo, se vuelve extremadamente difícil de cambiar
+#COLOR_MIN_COVERAGE = 0.15  ## Umbral mínimo de cobertura (más alto evita detectar brazos/piel)
+#KP_CONF_MIN = 0.50 # Minimum confidence for keypoints to be considered valid    
+
 COLOR_HISTORY_LEN = 20 # frames para estabilización temporal del color
 TORSO_CENTER_FRAC = 0.70 # fracción central del torso a analizar (evita brazos/fondo)
 MAX_TRACK_AGE = 30 # frames sin ver un track antes de descartarlo
@@ -466,3 +475,4 @@ def person_process_frame(frame, model):
     people_detected = len(ros_detections) > 0
     people_count = len(ros_detections)
     return annotated_frame, people_detected, people_count, ros_detections
+

@@ -1,0 +1,249 @@
+Monitor run: 2026-06-23T14:05:17+01:00
+Duration per topic: 20 seconds
+Container: camera_processor_ws
+
+=== 2026-06-23T14:05:17+01:00 ===
+Topic: /camera/image_raw
+average rate: 4.295
+        min: 0.094s max: 0.603s std dev: 0.20736s window: 9
+average rate: 4.859
+        min: 0.091s max: 0.603s std dev: 0.19675s window: 16
+average rate: 3.401
+        min: 0.091s max: 1.706s std dev: 0.40136s window: 17
+average rate: 3.915
+        min: 0.091s max: 1.706s std dev: 0.36216s window: 27
+average rate: 3.526
+        min: 0.091s max: 1.706s std dev: 0.38145s window: 31
+average rate: 3.267
+        min: 0.091s max: 1.706s std dev: 0.39572s window: 32
+average rate: 3.198
+        min: 0.091s max: 1.706s std dev: 0.42915s window: 39
+average rate: 3.113
+        min: 0.091s max: 1.706s std dev: 0.43368s window: 42
+average rate: 3.027
+        min: 0.091s max: 1.706s std dev: 0.44755s window: 46
+average rate: 3.069
+        min: 0.091s max: 1.706s std dev: 0.46081s window: 54
+
+=== 2026-06-23T14:05:39+01:00 ===
+Topic: /person/processed_image
+average rate: 1.460
+        min: 0.492s max: 1.006s std dev: 0.22877s window: 3
+average rate: 1.833
+        min: 0.325s max: 1.006s std dev: 0.21947s window: 6
+average rate: 1.906
+        min: 0.325s max: 1.006s std dev: 0.18840s window: 9
+average rate: 2.015
+        min: 0.198s max: 1.006s std dev: 0.18648s window: 12
+average rate: 2.003
+        min: 0.198s max: 1.006s std dev: 0.17281s window: 14
+average rate: 2.031
+        min: 0.198s max: 1.006s std dev: 0.16204s window: 17
+average rate: 2.043
+        min: 0.198s max: 1.006s std dev: 0.15236s window: 20
+average rate: 2.100
+        min: 0.185s max: 1.006s std dev: 0.16647s window: 23
+average rate: 2.073
+        min: 0.185s max: 1.006s std dev: 0.16178s window: 25
+average rate: 2.073
+        min: 0.185s max: 1.006s std dev: 0.15325s window: 28
+average rate: 2.066
+        min: 0.185s max: 1.006s std dev: 0.14700s window: 31
+average rate: 2.053
+        min: 0.185s max: 1.006s std dev: 0.14825s window: 34
+
+=== 2026-06-23T14:06:01+01:00 ===
+Topic: /pose/ia/processed_image
+average rate: 1.424
+        min: 0.660s max: 0.725s std dev: 0.03016s window: 3
+average rate: 1.432
+        min: 0.469s max: 0.916s std dev: 0.14336s window: 5
+average rate: 1.483
+        min: 0.469s max: 0.916s std dev: 0.12989s window: 7
+average rate: 1.593
+        min: 0.366s max: 0.916s std dev: 0.14330s window: 10
+average rate: 1.640
+        min: 0.366s max: 0.916s std dev: 0.15824s window: 13
+average rate: 1.749
+        min: 0.319s max: 0.916s std dev: 0.16734s window: 16
+average rate: 1.776
+        min: 0.319s max: 0.916s std dev: 0.16425s window: 19
+average rate: 1.772
+        min: 0.319s max: 0.916s std dev: 0.15629s window: 21
+average rate: 1.842
+        min: 0.292s max: 0.916s std dev: 0.15968s window: 24
+average rate: 1.777
+        min: 0.292s max: 1.018s std dev: 0.17855s window: 26
+average rate: 1.719
+        min: 0.292s max: 1.225s std dev: 0.21335s window: 28
+
+=== 2026-06-23T14:06:23+01:00 ===
+Topic: /pose_heuristic/processed_image
+average rate: 0.735
+        min: 1.069s max: 1.654s std dev: 0.29267s window: 2
+average rate: 0.884
+        min: 0.832s max: 1.654s std dev: 0.31306s window: 4
+average rate: 1.161
+        min: 0.404s max: 1.654s std dev: 0.39541s window: 7
+average rate: 1.270
+        min: 0.404s max: 1.654s std dev: 0.37598s window: 9
+average rate: 1.294
+        min: 0.404s max: 1.654s std dev: 0.34441s window: 11
+average rate: 1.282
+        min: 0.383s max: 1.654s std dev: 0.40042s window: 14
+average rate: 1.312
+        min: 0.383s max: 1.654s std dev: 0.38178s window: 16
+average rate: 1.389
+        min: 0.383s max: 1.654s std dev: 0.36509s window: 19
+average rate: 1.391
+        min: 0.383s max: 1.654s std dev: 0.34877s window: 21
+average rate: 1.401
+        min: 0.383s max: 1.654s std dev: 0.33476s window: 23
+average rate: 1.421
+        min: 0.310s max: 1.654s std dev: 0.33243s window: 25
+
+=== 2026-06-23T14:06:46+01:00 ===
+Topic: /person/detections
+average rate: 1.736
+        min: 0.483s max: 0.716s std dev: 0.10104s window: 3
+average rate: 1.923
+        min: 0.424s max: 0.716s std dev: 0.09320s window: 6
+average rate: 1.835
+        min: 0.424s max: 0.779s std dev: 0.12129s window: 8
+average rate: 1.799
+        min: 0.424s max: 0.779s std dev: 0.11650s window: 10
+average rate: 1.714
+        min: 0.424s max: 0.807s std dev: 0.12790s window: 12
+average rate: 1.855
+        min: 0.287s max: 0.807s std dev: 0.14728s window: 15
+average rate: 1.826
+        min: 0.287s max: 0.807s std dev: 0.14106s window: 17
+average rate: 1.828
+        min: 0.287s max: 0.807s std dev: 0.13905s window: 19
+average rate: 1.833
+        min: 0.287s max: 0.807s std dev: 0.13579s window: 21
+average rate: 1.849
+        min: 0.287s max: 0.807s std dev: 0.13917s window: 24
+average rate: 1.857
+        min: 0.287s max: 0.807s std dev: 0.13193s window: 27
+average rate: 1.852
+        min: 0.287s max: 0.807s std dev: 0.12747s window: 29
+average rate: 1.867
+        min: 0.287s max: 0.807s std dev: 0.12264s window: 32
+
+=== 2026-06-23T14:07:08+01:00 ===
+Topic: /person/detected
+average rate: 2.098
+        min: 0.259s max: 0.571s std dev: 0.12631s window: 4
+average rate: 2.068
+        min: 0.248s max: 0.679s std dev: 0.15215s window: 7
+average rate: 2.176
+        min: 0.248s max: 0.679s std dev: 0.15160s window: 10
+average rate: 2.189
+        min: 0.248s max: 0.679s std dev: 0.14596s window: 13
+average rate: 2.255
+        min: 0.248s max: 0.679s std dev: 0.13745s window: 16
+average rate: 2.257
+        min: 0.248s max: 0.679s std dev: 0.13232s window: 19
+average rate: 2.169
+        min: 0.248s max: 0.793s std dev: 0.14438s window: 22
+average rate: 2.205
+        min: 0.248s max: 0.793s std dev: 0.13737s window: 25
+average rate: 2.220
+        min: 0.153s max: 0.793s std dev: 0.14462s window: 28
+average rate: 2.165
+        min: 0.153s max: 0.793s std dev: 0.14617s window: 30
+average rate: 2.120
+        min: 0.153s max: 0.793s std dev: 0.14750s window: 32
+average rate: 2.111
+        min: 0.153s max: 0.793s std dev: 0.14795s window: 35
+average rate: 2.103
+        min: 0.153s max: 0.793s std dev: 0.14699s window: 37
+
+=== 2026-06-23T14:07:31+01:00 ===
+Topic: /pose/ia/detected
+average rate: 1.234
+        min: 0.707s max: 0.913s std dev: 0.08416s window: 3
+average rate: 1.378
+        min: 0.389s max: 0.913s std dev: 0.18082s window: 5
+average rate: 1.613
+        min: 0.389s max: 0.913s std dev: 0.19925s window: 8
+average rate: 1.816
+        min: 0.277s max: 0.913s std dev: 0.20965s window: 11
+average rate: 1.861
+        min: 0.277s max: 0.913s std dev: 0.20466s window: 14
+average rate: 1.802
+        min: 0.277s max: 0.913s std dev: 0.19988s window: 16
+average rate: 1.857
+        min: 0.277s max: 0.913s std dev: 0.19023s window: 19
+average rate: 1.849
+        min: 0.277s max: 0.913s std dev: 0.18039s window: 22
+average rate: 1.816
+        min: 0.277s max: 0.913s std dev: 0.17946s window: 24
+average rate: 1.799
+        min: 0.277s max: 0.913s std dev: 0.18807s window: 26
+average rate: 1.756
+        min: 0.277s max: 0.913s std dev: 0.18804s window: 28
+
+=== 2026-06-23T14:07:53+01:00 ===
+Topic: /pose/heuristic/detected
+WARNING: topic [/pose/heuristic/detected] does not appear to be published yet
+average rate: 1.477
+        min: 0.355s max: 0.948s std dev: 0.24468s window: 3
+average rate: 1.610
+        min: 0.355s max: 0.948s std dev: 0.20315s window: 5
+average rate: 1.553
+        min: 0.355s max: 0.948s std dev: 0.17576s window: 7
+average rate: 1.509
+        min: 0.355s max: 0.948s std dev: 0.15962s window: 9
+average rate: 1.436
+        min: 0.355s max: 0.961s std dev: 0.16807s window: 11
+average rate: 1.435
+        min: 0.355s max: 0.961s std dev: 0.15572s window: 13
+average rate: 1.438
+        min: 0.355s max: 0.961s std dev: 0.15153s window: 15
+average rate: 1.438
+        min: 0.355s max: 0.961s std dev: 0.14934s window: 17
+average rate: 1.394
+        min: 0.355s max: 1.044s std dev: 0.16152s window: 19
+average rate: 1.361
+        min: 0.355s max: 1.044s std dev: 0.16584s window: 21
+average rate: 1.342
+        min: 0.355s max: 1.044s std dev: 0.16235s window: 23
+
+=== 2026-06-23T14:08:15+01:00 ===
+Topic: /pose/detected
+average rate: 19.997
+        min: 0.044s max: 0.056s std dev: 0.00223s window: 22
+average rate: 19.961
+        min: 0.044s max: 0.056s std dev: 0.00217s window: 42
+average rate: 19.954
+        min: 0.023s max: 0.077s std dev: 0.00541s window: 62
+average rate: 20.000
+        min: 0.023s max: 0.077s std dev: 0.00533s window: 83
+average rate: 19.999
+        min: 0.023s max: 0.077s std dev: 0.00504s window: 103
+average rate: 19.982
+        min: 0.023s max: 0.077s std dev: 0.00482s window: 124
+average rate: 20.000
+        min: 0.023s max: 0.077s std dev: 0.00458s window: 145
+average rate: 20.000
+        min: 0.023s max: 0.077s std dev: 0.00440s window: 166
+average rate: 20.000
+        min: 0.023s max: 0.077s std dev: 0.00420s window: 186
+average rate: 20.000
+        min: 0.023s max: 0.077s std dev: 0.00403s window: 207
+average rate: 20.000
+        min: 0.023s max: 0.077s std dev: 0.00397s window: 228
+average rate: 20.000
+        min: 0.023s max: 0.077s std dev: 0.00388s window: 248
+average rate: 19.989
+        min: 0.006s max: 0.094s std dev: 0.00608s window: 268
+average rate: 20.000
+        min: 0.006s max: 0.094s std dev: 0.00596s window: 289
+average rate: 19.999
+        min: 0.006s max: 0.094s std dev: 0.00585s window: 310
+average rate: 20.000
+        min: 0.006s max: 0.094s std dev: 0.00581s window: 331
+average rate: 19.998
+        min: 0.006s max: 0.094s std dev: 0.00574s window: 352

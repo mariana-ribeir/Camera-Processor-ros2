@@ -76,14 +76,14 @@ class HeuristicPoseNode(Node):
             '/pose/heuristic/detected',
             1
         )
-        
-        self.create_timer(0.05, self.process)
-
+        #self.create_timer(0.05, self.process)   # Check for new data every 50ms
     def image_callback(self, msg):
             self.last_frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
     def detections_callback(self, msg):
         self.latest_detections = msg.detections
+        # Trigger processing when new detections arrive (matches camera pipeline speed)
+        self.process()
 
     def process(self):
         if self.processing or self.last_frame is None or self.latest_detections is None:

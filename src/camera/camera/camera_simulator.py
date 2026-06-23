@@ -23,7 +23,8 @@ class CameraSimulator(Node):
         super().__init__('camera_simulator')
         self.get_logger().info("Node 'camera_simulator' started!")
         self.publisher_ = self.create_publisher(Image, '/camera/image_raw', 1)
-        self.timer = self.create_timer(0.1, self.timer_callback)  # 0.66~15 0.1~10 FPS, publish every 0.1s
+        # Seteado a 0.05 (20 FPS) para mayor fluidez. Si el Jetson laguea, subir a 0.06 o 0.1
+        self.timer = self.create_timer(0.1, self.timer_callback)
         self.bridge = CvBridge()
 
         # Open video (0 = webcam, ou "video.mp4")
@@ -41,6 +42,9 @@ class CameraSimulator(Node):
             # Start over the video
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             return
+
+        # Optimization: Resize frame to 640x480 to reduce load on AI nodes (INTER_AREA is better for downscaling)
+        frame = cv2.resize(frame, (640, 480), interpolation=cv2.INTER_AREA)
 
         # Publish camera image
         msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')

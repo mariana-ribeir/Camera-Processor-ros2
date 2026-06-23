@@ -58,7 +58,18 @@ class PersonProcessorNode(Node):
 
         # load the model
         self.get_logger().info(f"Loading YOLO Pose ONNX model from {model_path}...")
-        self.model = YOLO(model_path)
+        self.model = YOLO(model_path, task='pose')
+        
+        # Try to move to GPU if available
+        try:
+            import torch
+            if torch.cuda.is_available():
+                self.get_logger().info("CUDA detected! Switching YOLO to GPU...")
+                self.model.to('cuda')
+            else:
+                self.get_logger().warning("CUDA NOT detected. Running on CPU (slow).")
+        except Exception as e:
+            self.get_logger().error(f"Error checking CUDA: {e}")
 
         #publishers for detection and count
         self.detected_pub = self.create_publisher(Bool, 'person/detected', 10)
@@ -79,11 +90,10 @@ class PersonProcessorNode(Node):
             self.image_callback,
             1)
                
-        self.create_timer(0.1, self.process)
-        
-
     def image_callback(self, msg):
         self.last_frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        # Process immediately if not busy (matches camera FPS dynamically)
+        self.process()
 
     def process(self):
         if self.processing or self.last_frame is None:
