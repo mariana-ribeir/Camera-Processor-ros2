@@ -23,8 +23,8 @@ class CameraSimulator(Node):
         super().__init__('camera_simulator')
         self.get_logger().info("Node 'camera_simulator' started!")
         self.publisher_ = self.create_publisher(Image, '/camera/image_raw', 1)
-        # Seteado a 0.05 (20 FPS) para mayor fluidez. Si el Jetson laguea, subir a 0.06 o 0.1
-        self.timer = self.create_timer(0.1, self.timer_callback)
+        # Seteado a 0.25 (4 FPS) para mayor fluidez. Si el Jetson laguea, subir a 0.3 o 0.4
+        self.timer = self.create_timer(0.25, self.timer_callback)
         self.bridge = CvBridge()
 
         # Open video (0 = webcam, ou "video.mp4")
@@ -61,7 +61,7 @@ def main(args=None):
     #Define the name of the folder of videos data
     pkg_share = get_package_share_directory('camera')
     data_dir = os.path.join(pkg_share, 'data')
-    video=os.path.join(data_dir, 'TEST3.mp4')
+    video=os.path.join(data_dir, 'TEST1.mp4')
 
     #Create the node
     node = CameraSimulator(video)

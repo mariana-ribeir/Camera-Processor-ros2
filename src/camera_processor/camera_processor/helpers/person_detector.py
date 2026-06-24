@@ -3,7 +3,7 @@ import numpy as np
 from collections import deque
 
 # Detection/tracking configuration
-DEFAULT_CONF = 0.50
+DEFAULT_CONF = 0.60 # confianza mínima detección YOLO
 
 #COLOR_HISTORY_LEN = 30 # Aumentado: más inercia para aguantar giros de la persona
 #TORSO_CENTER_FRAC = 0.70 # fracción central del torso a analizar (evita brazos/fondo)
@@ -17,7 +17,7 @@ DEFAULT_CONF = 0.50
 COLOR_HISTORY_LEN = 20 # frames para estabilización temporal del color
 TORSO_CENTER_FRAC = 0.70 # fracción central del torso a analizar (evita brazos/fondo)
 MAX_TRACK_AGE = 30 # frames sin ver un track antes de descartarlo
-IOU_THRESHOLD = 0.40 # IoU minimo para asociar deteccion con track previo
+IOU_THRESHOLD = 0.90 # IoU minimo para asociar deteccion con track previo
 COLOR_SWITCH_CONFIRM_FRAMES = 10 # frames consecutivos para aceptar cambio de color
 COLOR_LOCK_MIN_STREAK = 8 # si un color lleva varios frames, se protege mas ante cambios bruscos
 
@@ -42,33 +42,31 @@ KP_SKELETON = [
 
 # Fixed person IDs by shirt color
 COLOR_TO_ID = {
-    "RED": 1,
-    "ORANGE": 2,
+    "PINK":   1,
+    "BLACK":  2,
     "YELLOW": 3,
-    "GREEN": 4,
-    "BLUE": 5,
 }
 
 # HSV ranges for shirt-color detection
 HSV_RANGES = {
-    # ---------------- RED ----------------
-    "RED": [((0,   120,  80), (5,   255, 255)), ((170, 120,  80), (180, 255, 255))],
-    # ---------------- ORANGE ----------------
-    "ORANGE": [((6,  120, 120), (18, 255, 255))],
+    # ---------------- PINK / FUCHSIA ----------------
+    "PINK": [
+        ((165, 80, 120), (179, 255, 255)),
+        ((0, 80, 120), (5, 255, 255))
+    ],
+    # ---------------- BLACK / DARK BLUE ----------------
+    "BLACK": [
+        ((0, 0, 0), (180, 255, 60)),     # Negro / Muy oscuro
+        ((100, 40, 20), (135, 255, 120)) # Azul Oscuro
+    ],
     # ---------------- YELLOW ----------------
     "YELLOW": [((20, 70, 70), (38, 255, 255))],
-    # ---------------- GREEN ----------------
-    "GREEN": [((39, 70, 50), (89, 255, 255))],
-    # ---------------- BLUE ----------------
-    "BLUE": [((100, 120, 70), (128, 255, 255))],
 }
 
 VIS_COLORS = {
-    "RED": (0, 0, 255),
-    "ORANGE": (0, 128, 255),
-    "YELLOW": (0, 255, 255),
-    "GREEN": (0, 255, 0),
-    "BLUE": (255, 0, 0),
+    "PINK":   (255, 0, 255),  # Fuchsia/Pink
+    "BLACK":  (40, 40, 40),   # Negro/Gris Oscuro
+    "YELLOW": (0, 255, 255),  # Amarillo
     "UNKNOWN": (140, 140, 140),
 }
 
@@ -475,4 +473,3 @@ def person_process_frame(frame, model):
     people_detected = len(ros_detections) > 0
     people_count = len(ros_detections)
     return annotated_frame, people_detected, people_count, ros_detections
-
