@@ -56,6 +56,12 @@ RUN /bin/bash -c "source /opt/ros/jazzy/setup.bash && \
 RUN mkdir -p /opt/ros/jazzy/lib/python3.12/site-packages/
 RUN cp -r install/cv_bridge/lib/python3.12/site-packages/cv_bridge /opt/ros/jazzy/lib/python3.12/site-packages/
 
+# --- 3.5. ROS-TCP-ENDPOINT PARA UNITY ---
+RUN apt update && apt install -y \
+    python3-rospkg \
+    ros-jazzy-ros-base \
+    && rm -rf /var/lib/apt/lists/*
+
 # --- 4. WORKSPACE DO UTILIZADOR ---
 ARG WORKSPACE=/workspaces/ros2_ws
 WORKDIR $WORKSPACE

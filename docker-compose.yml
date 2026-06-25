@@ -15,6 +15,7 @@ services:
     #  - video
     ports:
       - "8080:8080"
+      - "10000:10000"
     stdin_open: true
     tty: true
     command: /bin/bash
