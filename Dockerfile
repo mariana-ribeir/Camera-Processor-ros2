@@ -29,21 +29,26 @@ RUN apt update && apt install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade setuptools to support --editable
-RUN pip3 install --upgrade setuptools --break-system-packages
+RUN pip3 install --break-system-packages --upgrade setuptools
 
-# --- 1b. INSTALL OPENCV WITH GTK SUPPORT ---
-# Use --ignore-installed to bypass system numpy that can't be uninstalled
-RUN pip3 install --break-system-packages --ignore-installed opencv-python
+# --- 1b. INSTALL OPENCV AND NUMPY STABLE ---
+# We pin numpy to 1.26.x and opencv to 4.10.x to maintain compatibility with cv_bridge
+RUN pip3 install --break-system-packages --ignore-installed \
+    "numpy<2.0.0" \
+    "opencv-python==4.10.0.84"
 
 # Environment variable to help with display
 ENV QT_X11_NO_MITSHM=1
 ENV OPENCV_VIDEOIO_PRIORITY_GSTREAMER=0
 
 # --- 2. DEPENDÊNCIAS PYTHON ---
-RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu --break-system-packages
-RUN pip3 install onnx onnxruntime ultralytics torchreid gdown tensorboard scipy scikit-learn lap \
-    --break-system-packages \
-    --ignore-installed numpy \
+# We must re-pin them here because ultralytics/torch might try to upgrade them
+RUN pip3 install --break-system-packages \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+RUN pip3 install --break-system-packages \
+    onnx onnxruntime ultralytics torchreid gdown tensorboard scipy scikit-learn lap \
+    "numpy<2.0.0" \
+    "opencv-python==4.10.0.84" \
     --extra-index-url https://download.pytorch.org/whl/cpu
 
 # --- 3. FIX CV_BRIDGE ---
