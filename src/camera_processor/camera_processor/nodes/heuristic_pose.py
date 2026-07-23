@@ -2,6 +2,7 @@ import os
 import torch
 import rclpy
 import threading
+import cv2
 from rclpy.node import Node
 from ultralytics import YOLO
 from cv_bridge import CvBridge
@@ -38,6 +39,9 @@ class HeuristicPoseNode(Node):
 
         self.declare_parameter('show_gui', False)
         self.show_gui = self.get_parameter('show_gui').value
+
+        self.declare_parameter('rotate_video', True)
+        self.rotate_video = self.get_parameter('rotate_video').value
 
         pkg_share = get_package_share_directory('camera_processor')
         model_path = os.path.join(pkg_share, 'models', 'yolo26n-pose.onnx')
@@ -91,6 +95,9 @@ class HeuristicPoseNode(Node):
 
         self.processing = True
         frame = self.last_frame.copy()
+
+        if self.rotate_video:
+            frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
 
         threading.Thread(target=self._process_frame, args=(frame,), daemon=True).start()
 

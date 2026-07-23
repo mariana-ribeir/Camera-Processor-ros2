@@ -3,7 +3,7 @@ import numpy as np
 from collections import deque
 
 # Detection/tracking configuration
-DEFAULT_CONF = 0.60 # confianza mínima detección YOLO
+DEFAULT_CONF = 0.05 # confianza mínima detección YOLO
 
 #COLOR_HISTORY_LEN = 30 # Aumentado: más inercia para aguantar giros de la persona
 #TORSO_CENTER_FRAC = 0.70 # fracción central del torso a analizar (evita brazos/fondo)
@@ -45,6 +45,7 @@ COLOR_TO_ID = {
     "PINK":   1,
     "BLACK":  2,
     "YELLOW": 3,
+    "ORANGE": 4,
 }
 
 # HSV ranges for shirt-color detection
@@ -61,12 +62,15 @@ HSV_RANGES = {
     ],
     # ---------------- YELLOW ----------------
     "YELLOW": [((20, 70, 70), (38, 255, 255))],
+    # ---------------- ORANGE ----------------
+    "ORANGE": [((5, 100, 100), (19, 255, 255))],
 }
 
 VIS_COLORS = {
     "PINK":   (255, 0, 255),  # Fuchsia/Pink
     "BLACK":  (40, 40, 40),   # Negro/Gris Oscuro
     "YELLOW": (0, 255, 255),  # Amarillo
+    "ORANGE": (0, 165, 255),  # Naranja
     "UNKNOWN": (140, 140, 140),
 }
 

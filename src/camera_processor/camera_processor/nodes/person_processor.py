@@ -1,6 +1,7 @@
 import rclpy
 import os
 import threading
+import cv2
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool
@@ -51,6 +52,9 @@ class PersonProcessorNode(Node):
         #publish the processed image so we can see it remotely
         self.declare_parameter('show_gui', False)
         self.show_gui = self.get_parameter('show_gui').value
+
+        self.declare_parameter('rotate_video', True)
+        self.rotate_video = self.get_parameter('rotate_video').value
 
         # path setup for model
         pkg_share = get_package_share_directory('camera_processor')
@@ -105,6 +109,9 @@ class PersonProcessorNode(Node):
         # copy latest frame
         frame = self.last_frame.copy()
 
+        if self.rotate_video:
+            frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+
         # run heavy YOLO in a separate thread to avoid blocking subscriber
         threading.Thread(target=self._process_frame, args=(frame,), daemon=True).start()
 
@@ -155,3 +162,5 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
+

@@ -2,6 +2,7 @@ import torch
 import rclpy
 import os
 import threading
+import cv2
 from ultralytics import YOLO
 from rclpy.node import Node
 from cv_bridge import CvBridge
@@ -44,6 +45,9 @@ class IaPoseNode(Node):
         # params
         self.declare_parameter('show_gui', False)
         self.show_gui = self.get_parameter('show_gui').value
+
+        self.declare_parameter('rotate_video', True)
+        self.rotate_video = self.get_parameter('rotate_video').value
         
         # load the model
         pkg_share = get_package_share_directory('camera_processor')
@@ -101,6 +105,10 @@ class IaPoseNode(Node):
 
         self.processing = True
         frame = self.last_frame.copy()
+
+        if self.rotate_video:
+            frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+
         detections = list(self.last_detections)  # make a copy to avoid race conditions
 
         threading.Thread(target=self._process_frame, args=(frame, detections), daemon=True).start()

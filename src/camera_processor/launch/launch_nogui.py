@@ -17,7 +17,10 @@ def generate_launch_description():
         Node(
             package='camera',
             executable='camera_simulator',
-            parameters=[{'show_gui': False}],
+            parameters=[{
+                'show_gui': False,
+                'rotate_video': False
+            }],
             name='camera_simulator'
         ),
         
@@ -25,21 +28,32 @@ def generate_launch_description():
             package='camera_processor',
             executable='person_processor',
             name='person_processor',
-            parameters=[{'show_gui': False}],
+            parameters=[{
+                'show_gui': False,
+                'rotate_video': True
+            }],
             output='screen'
         ),
 
         Node(
             package='camera_processor',
             executable='ai_pose',
-            parameters=[{'show_gui': False}],
+            name='ai_pose',
+            parameters=[{
+                'show_gui': False,
+                'rotate_video': True
+            }],
             output='screen'
         ),
 
         Node(
             package='camera_processor',
             executable='heuristic_pose',
-            parameters=[{'show_gui': False}],
+            name='heuristic_pose',
+            parameters=[{
+                'show_gui': False,
+                'rotate_video': True
+            }],
             output='screen'
         ),
 
