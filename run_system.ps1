@@ -1,10 +1,16 @@
 # Script para executar o sistema ROS2 Camera Processor
 # Executar a partir do diretório do projeto: .\run_system.ps1
 # Para usar GUI: .\run_system.ps1 -Gui
+# Para executar apenas o monitor Empatica GMM: .\run_system.ps1 -GMM
 
-param([switch]$Gui, [string]$OnnxRuntime = "auto", [switch]$ForceBuild)
+param([switch]$Gui, [switch]$GMM, [string]$OnnxRuntime = "auto", [switch]$ForceBuild)
 
 Write-Host "Iniciando script para ROS2 Camera Processor..."
+
+if ($Gui -and $GMM) {
+    Write-Host "Erro: -Gui y -GMM son modos excluyentes."
+    exit 1
+}
 
 # Validar runtime ONNX solicitado
 if ($OnnxRuntime -notin @("auto", "cpu", "gpu")) {
@@ -12,8 +18,11 @@ if ($OnnxRuntime -notin @("auto", "cpu", "gpu")) {
     exit 1
 }
 
-# Se não foi escolhido manualmente, detectar GPU NVIDIA no host.
-if ($OnnxRuntime -eq "auto") {
+# El nodo GMM no usa ONNX; evitar detección de GPU y validación de ONNX en ese modo.
+if ($GMM -and $OnnxRuntime -eq "auto") {
+    $OnnxRuntime = "cpu"
+    Write-Host "Modo GMM: se omite la detección de GPU/ONNX."
+} elseif ($OnnxRuntime -eq "auto") {
     $gpuDetected = $false
     $nvidiaSmiCmd = Get-Command nvidia-smi -ErrorAction SilentlyContinue
     if ($nvidiaSmiCmd) {
@@ -41,7 +50,7 @@ $imageExists = docker images -q camera-processor:jazzy
 $needBuild = $ForceBuild -or -not $imageExists
 
 # Se a imagem existe e não foi pedido ForceBuild, valida dependências ONNX.
-if (-not $needBuild) {
+if (-not $needBuild -and -not $GMM) {
     Write-Host "Validando dependências ONNX na imagem existente..."
     if ($OnnxRuntime -eq "gpu") {
         docker run --rm camera-processor:jazzy bash -lc "python3 -m pip show onnxruntime-gpu >/dev/null 2>&1"
@@ -67,7 +76,10 @@ if ($needBuild) {
 }
 
 # Determinar qual launch file usar
-if ($Gui) {
+if ($GMM) {
+    $launchFile = "launch_gmm.py"
+    Write-Host "Usando modo GMM independiente."
+} elseif ($Gui) {
     $launchFile = "launch.py"
     Write-Host "Usando modo GUI."
 } else {
@@ -127,25 +139,35 @@ if ($containerStatus -notlike "*Up*") {
 Write-Host "Listando tópicos..."
 docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic list'
 
-# Passo 10: Ouvir /person/detected
+# En modo GMM, escuchar únicamente sus resultados y omitir los tópicos de cámara.
+if ($GMM) {
+    Write-Host "Ouvindo /empatica/gmm/predictions..."
+    docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 70 ros2 topic echo /empatica/gmm/predictions'
+} else {
+# Passo 10: Ouvir primero los resultados nuevos del GMM (la consulta S3 ocurre cada 60 s)
+Write-Host "Ouvindo /empatica/gmm/predictions..."
+docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 70 ros2 topic echo /empatica/gmm/predictions'
+
+# Passo 11: Ouvir /person/detected
 Write-Host "Ouvindo /person/detected..."
 docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /person/detected'
 
-# Passo 11: Ouvir /person/detections
+# Passo 12: Ouvir /person/detections
 Write-Host "Ouvindo /person/detections..."
 docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /person/detections'
 
-# Passo 12: Ouvir /pose/ia/detected
+# Passo 13: Ouvir /pose/ia/detected
 Write-Host "Ouvindo /pose/ia/detected..."
 docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /pose/ia/detected'
 
-# Passo 13: Ouvir /pose/heuristic/detected
+# Passo 14: Ouvir /pose/heuristic/detected
 Write-Host "Ouvindo /pose/heuristic/detected..."
 docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /pose/heuristic/detected'
 
-# Passo 14: Ouvir /pose/detected
+# Passo 15: Ouvir /pose/detected
 Write-Host "Ouvindo /pose/detected..."
 docker exec camera_processor_ws bash -lc 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && timeout 10 ros2 topic echo /pose/detected'
+}
 
 if ($Gui) {
     Write-Host "Modo GUI activado. El servidor web está disponible en http://localhost:8080"

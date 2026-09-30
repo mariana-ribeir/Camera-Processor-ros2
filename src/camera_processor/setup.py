@@ -22,7 +22,15 @@ setup(
     version='0.0.0',
     packages=find_packages(exclude=['test']),
     data_files=data_files,
-    install_requires=['setuptools', 'opencv-python', 'cv-bridge'],
+    install_requires=[
+        'setuptools',
+        'opencv-python',
+        'cv-bridge',
+        'boto3',
+        'numpy',
+        'pandas',
+        'scikit-learn',
+    ],
     zip_safe=True,
     maintainer='root',
     maintainer_email='marianadsr.2001@gmail.com',
@@ -39,7 +47,8 @@ setup(
             'person_processor = camera_processor.nodes.person_processor:main',
             'heuristic_pose = camera_processor.nodes.heuristic_pose:main',
             'ai_pose = camera_processor.nodes.ai_pose:main',
-            'pose_processor = camera_processor.nodes.pose_processor:main'
+            'pose_processor = camera_processor.nodes.pose_processor:main',
+            'empatica_gmm_monitor = camera_processor.nodes.empatica_gmm_node:main',
         ],
     },
 )

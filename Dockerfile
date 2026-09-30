@@ -44,12 +44,16 @@ ENV OPENCV_VIDEOIO_PRIORITY_GSTREAMER=0
 # --- 2. DEPENDÊNCIAS PYTHON ---
 # We must re-pin them here because ultralytics/torch might try to upgrade them
 RUN pip3 install --break-system-packages \
+    --default-timeout=300 --retries=5 \
     torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 RUN pip3 install --break-system-packages \
-    onnx onnxruntime ultralytics torchreid gdown tensorboard scipy scikit-learn lap \
+    --default-timeout=300 --retries=5 \
+    onnx onnxruntime mediapipe ultralytics torchreid gdown tensorboard scipy scikit-learn lap \
     "numpy<2.0.0" \
     "opencv-python==4.10.0.84" \
     --extra-index-url https://download.pytorch.org/whl/cpu
+
+RUN pip3 install --break-system-packages --default-timeout=300 --retries=5 boto3 pandas
 
 # --- 3. FIX CV_BRIDGE ---
 WORKDIR /opt/cv_bridge_build

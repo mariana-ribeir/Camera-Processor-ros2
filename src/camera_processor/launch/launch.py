@@ -64,6 +64,13 @@ def generate_launch_description():
             output='screen'
         ),
 
+        Node(
+            package='camera_processor',
+            executable='empatica_gmm_monitor',
+            name='empatica_gmm_monitor',
+            output='screen'
+        ),
+
         # Node Web Video Server (The Eyes)
         # allows you to see the 'processed_image's in a browser
         Node(

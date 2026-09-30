@@ -131,6 +131,22 @@ You can also visualize processed topics such as:
 - /pose/heuristic/detected
 - /pose/detected
 
+## Empatica GMM Monitor
+
+The independent `empatica_gmm_monitor` node checks the configured S3 prefix every 60 seconds, loads the newest day of digital biomarkers, applies the notebook's preprocessing and trained scaler/PCA/GMM bundle, and publishes only timestamps not previously published. Its first run records the existing valid rows as a baseline; later rows are published in batches on `/empatica/gmm/predictions`. The state file stores timestamps only for the active S3 date and drops the previous day's timestamps when a new date is detected.
+
+Before launching, configure AWS and the participant in a root `.env` file (start from `.env.example`) and place the trusted `gmm_model.pkl` bundle at `src/camera_processor/models/gmm_model.pkl`, or set `GMM_MODEL_PATH`. The bundle must contain `model`, `scaler`, `pca`, `features`, and `use_pca`. Do not commit AWS credentials or an untrusted pickle file.
+
+Each `camera_interfaces/msg/EmpaticaPrediction` contains the Unix timestamp in milliseconds, ISO timestamp, cluster ID (0-8), notebook class label, and maximum cluster probability. The array message groups all newly available predictions from one poll:
+
+```bash
+ros2 topic echo /empatica/gmm/predictions
+```
+
+Every S3 poll also publishes a `camera_interfaces/msg/EmpaticaQueryStatus` on `/empatica/gmm/status`. Its `status` is `error`, `no_data`, `no_new_data`, `new_data`, or `baseline`; `row_count` and `detail` report the outcome. Monitor it with `ros2 topic echo /empatica/gmm/status`.
+
+The node is included in both `launch.py` and `launch_nogui.py` and does not subscribe to the camera pipeline.
+
 ## Architecture Summary
                                         +--------------------+
                                         |   Camera Node      |

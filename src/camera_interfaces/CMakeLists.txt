@@ -10,6 +10,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/PersonDetectionArray.msg"
   "msg/PoseDetection.msg"
   "msg/PoseDetectionArray.msg"
+  "msg/EmpaticaPrediction.msg"
+  "msg/EmpaticaPredictionArray.msg"
+  "msg/EmpaticaQueryStatus.msg"
   DEPENDENCIES std_msgs
 )
 

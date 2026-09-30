@@ -9,6 +9,11 @@
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
+  <depend>camera_interfaces</depend>
+  <exec_depend>python3-boto3</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-pandas</exec_depend>
+  <exec_depend>python3-sklearn</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

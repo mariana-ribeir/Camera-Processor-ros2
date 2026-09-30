@@ -64,6 +64,13 @@ def generate_launch_description():
         ),
 
         Node(
+            package='camera_processor',
+            executable='empatica_gmm_monitor',
+            name='empatica_gmm_monitor',
+            output='screen'
+        ),
+
+        Node(
             package='ros_tcp_endpoint',
             executable='default_server_endpoint',
             name='ros_tcp_endpoint',

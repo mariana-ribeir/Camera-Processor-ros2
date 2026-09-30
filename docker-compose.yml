@@ -6,9 +6,17 @@ services:
       - .:/workspaces/ros2_ws
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
     environment:
-      - DISPLAY=host.docker.internal:0
-      - QT_X11_NO_MITSHM=1
-      - OPENCV_VIDEOIO_PRIORITY_GSTREAMER=0
+      DISPLAY: host.docker.internal:0
+      QT_X11_NO_MITSHM: "1"
+      OPENCV_VIDEOIO_PRIORITY_GSTREAMER: "0"
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-empatica-us-east-1-prod-data}
+      S3_PREFIX: ${S3_PREFIX:-v2/2856/}
+      PARTICIPANT_ID: ${PARTICIPANT_ID:-1-1-0001}
+      GMM_MODEL_PATH: ${GMM_MODEL_PATH:-/workspaces/ros2_ws/src/camera_processor/models/gmm_model.pkl}
+      EMPATICA_STATE_FILE: ${EMPATICA_STATE_FILE:-/workspaces/ros2_ws/.cache/empatica_gmm_state.json}
     # devices:
     #   - "/dev/video0:/dev/video0"
     #group_add:
