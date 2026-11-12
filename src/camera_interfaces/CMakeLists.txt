@@ -13,6 +13,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/EmpaticaPrediction.msg"
   "msg/EmpaticaPredictionArray.msg"
   "msg/EmpaticaQueryStatus.msg"
+  "msg/FatiguePrediction.msg"
   DEPENDENCIES std_msgs
 )
 

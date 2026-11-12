@@ -1,5 +1,8 @@
 from launch import LaunchDescription
+from launch.actions import ExecuteProcess
 from launch_ros.actions import Node
+
+from camera_processor.helpers.polar_rosbag import polar_rosbag_command
 
 """
 Launch file for the Full Human Pose Detection and Fusion Pipeline.
@@ -14,7 +17,7 @@ This script orchestrates the following data flow:
 Note: 'show_gui' is enabled for processing nodes to allow remote visualization.
 """
 def generate_launch_description():
-    return LaunchDescription([
+    actions = [
         Node(
             package='camera',
             executable='camera_simulator',
@@ -71,6 +74,14 @@ def generate_launch_description():
             output='screen'
         ),
 
+        # Polar H10: BLE, baseline (15 ventanas) e inferencia de fatiga
+        Node(
+            package='camera_processor',
+            executable='polarh10_monitor',
+            name='polarh10_monitor',
+            output='screen'
+        ),
+
         # Node Web Video Server (The Eyes)
         # allows you to see the 'processed_image's in a browser
         Node(
@@ -92,4 +103,10 @@ def generate_launch_description():
             }],
             output='screen'
         ),
-    ])
+    ]
+
+    bag_command = polar_rosbag_command()
+    if bag_command is not None:
+        actions.insert(0, ExecuteProcess(cmd=bag_command, output='screen'))
+
+    return LaunchDescription(actions)

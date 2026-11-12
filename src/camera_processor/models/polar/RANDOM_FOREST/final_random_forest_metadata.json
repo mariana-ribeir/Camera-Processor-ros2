@@ -1,0 +1,88 @@
+{
+  "model_type": "RandomForestClassifier",
+  "validation": "LOSO_with_inner_random_forest_search",
+  "training_workers": [
+    "W00",
+    "W01",
+    "W02",
+    "W03",
+    "W04",
+    "W05",
+    "W06",
+    "W07",
+    "W08",
+    "W09"
+  ],
+  "feature_columns": [
+    "ECG_energy_z",
+    "ECG_mean_z",
+    "ECG_missing_peaks_z",
+    "ECG_range_z",
+    "ECG_samp_ent_z",
+    "ECG_std_z",
+    "HR_max_z",
+    "HR_mean_z",
+    "HR_min_z",
+    "RMSSD_z",
+    "SDNN_z",
+    "pNN50_z",
+    "HR_mean_ultimos_5min_z",
+    "cambio_HR_vs_baseline_z",
+    "tendencia_HR_z",
+    "cambio_RMSSD_z"
+  ],
+  "feature_count": 16,
+  "labels": [
+    "Low",
+    "Medium",
+    "High"
+  ],
+  "preprocessing": "SimpleImputer(strategy=median), included in the exported pipeline",
+  "onnx_path": "c:\\Users\\Carlo\\Desktop\\owncloud 2025-08-11 ECG\\new\\models\\tempvar_opt_allw\\RANDOM_FOREST\\final_random_forest.onnx",
+  "onnx_export": "skl2onnx, target_opset=15",
+  "rf_param_grid": {
+    "classifier__n_estimators": [
+      100,
+      200,
+      300,
+      500
+    ],
+    "classifier__max_depth": [
+      null,
+      10,
+      20,
+      30
+    ],
+    "classifier__min_samples_leaf": [
+      1,
+      2,
+      4
+    ]
+  },
+  "selected_params_final": {
+    "max_depth": 20,
+    "min_samples_leaf": 1,
+    "n_estimators": 300
+  },
+  "p33_train_all_workers": -0.27457982647895124,
+  "p66_train_all_workers": 1.587283997637409,
+  "target_column": "FatigueIndex",
+  "imputer_medians": [
+    -0.2864043128135354,
+    0.8263521250705916,
+    -0.0241787545680208,
+    -0.1043705774630779,
+    -0.1841163306617846,
+    0.156675263459691,
+    -0.1145747178201462,
+    1.1347641792844292,
+    0.7136375291173471,
+    -0.5180512517388547,
+    -0.5064719393726929,
+    -0.7601022693935707,
+    2.2980667983496743,
+    1.134764179284426,
+    -0.3079767505620175,
+    0.00385953939841905
+  ]
+}

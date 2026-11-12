@@ -18,10 +18,10 @@ if ($OnnxRuntime -notin @("auto", "cpu", "gpu")) {
     exit 1
 }
 
-# El nodo GMM no usa ONNX; evitar detección de GPU y validación de ONNX en ese modo.
+# El modo GMM no necesita GPU; el nodo Polar incluido usa ONNX en CPU.
 if ($GMM -and $OnnxRuntime -eq "auto") {
     $OnnxRuntime = "cpu"
-    Write-Host "Modo GMM: se omite la detección de GPU/ONNX."
+    Write-Host "Modo GMM: el nodo Polar usará ONNX en CPU."
 } elseif ($OnnxRuntime -eq "auto") {
     $gpuDetected = $false
     $nvidiaSmiCmd = Get-Command nvidia-smi -ErrorAction SilentlyContinue
@@ -60,6 +60,26 @@ if (-not $needBuild -and -not $GMM) {
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Dependência ONNX ausente/incompatível na imagem atual. Será feita reconstrução automática."
+        $needBuild = $true
+    }
+}
+
+# Todos los launch files incluyen Polar; reconstruir imágenes sin sus dependencias.
+if (-not $needBuild) {
+    Write-Host "Validando dependencias de inferencia Polar en la imagen existente..."
+    docker run --rm camera-processor:jazzy python3 -c "import antropy, onnxruntime, xgboost, joblib"
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Faltan dependencias Polar. Se reconstruirá la imagen automáticamente."
+        $needBuild = $true
+    }
+}
+
+if (-not $needBuild) {
+    Write-Host "Validando rosbag2 en la imagen existente..."
+    docker run --rm camera-processor:jazzy bash -lc "source /opt/ros/jazzy/setup.bash && ros2 bag --help >/dev/null 2>&1"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "rosbag2 no está instalado. Se reconstruirá la imagen automáticamente."
         $needBuild = $true
     }
 }
@@ -119,6 +139,34 @@ docker exec camera_processor_ws pkill -f "ros2 run" 2>$null
 # Passo 3: Lançar o sistema usando launch
 Write-Host "Lançando o sistema com launch..."
 docker exec -d camera_processor_ws bash -lc "source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 launch camera_processor $launchFile"
+
+$polarInputMode = $env:POLAR_INPUT_MODE
+if ([string]::IsNullOrWhiteSpace($polarInputMode)) {
+    $envFile = Join-Path $PSScriptRoot ".env"
+    if (Test-Path -LiteralPath $envFile) {
+        $modeLine = Get-Content -LiteralPath $envFile |
+            Where-Object { $_ -match '^\s*POLAR_INPUT_MODE\s*=' } |
+            Select-Object -Last 1
+        if ($modeLine) {
+            $polarInputMode = ($modeLine -split '=', 2)[1].Trim().Trim('"').Trim("'")
+        }
+    }
+}
+if ([string]::IsNullOrWhiteSpace($polarInputMode)) {
+    $polarInputMode = "bridge"
+}
+
+switch ($polarInputMode.Trim().ToLowerInvariant()) {
+    "android" {
+        Write-Host "Polar H10: abre PolarAPP en el telefono; no ejecutes polar_h10_tcp_bridge.py."
+    }
+    "bridge" {
+        Write-Host "Polar H10: en otra PowerShell, ejecuta: python .\scripts\polar_h10_tcp_bridge.py"
+    }
+    default {
+        Write-Warning "POLAR_INPUT_MODE='$polarInputMode' no reconocido; usa 'bridge' o 'android'."
+    }
+}
 
 # Esperar um pouco para que os nós iniciem
 Start-Sleep -Seconds 10

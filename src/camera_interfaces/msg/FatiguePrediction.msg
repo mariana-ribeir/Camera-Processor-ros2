@@ -1,0 +1,11 @@
+std_msgs/Header header
+string subject
+string participant_name
+string polar_device_id
+string model
+string label
+float32 probability_low
+float32 probability_medium
+float32 probability_high
+int32 imputed_features
+int32 history_minutes

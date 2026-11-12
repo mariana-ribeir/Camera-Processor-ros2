@@ -9,6 +9,16 @@ docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash &&
 # 2. Monitorear el resultado de cada consulta a S3 (estado, filas y detalle)
 docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic echo /empatica/gmm/status'
 
+# === POLARH10_MONITOR ===
+# Inicia una terminal PowerShell en Windows desde la raiz del repositorio:
+# python .\scripts\polar_h10_tcp_bridge.py
+# El nodo ROS y las inferencias corren en Docker; el puente solo accede al BLE de Windows.
+# 2.1 Monitorear inferencias de fatiga del Polar H10 (una por modelo activo)
+docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic echo /polar/fatigue/logistic_regression'
+docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic echo /polar/fatigue/random_forest'
+docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic echo /polar/fatigue/svm'
+docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic echo /polar/fatigue/xgboost'
+
 # === CAMERA_SIMULATOR ===
 # 3. Monitorear /camera/image_raw (imagen cruda de la cámara)
 docker exec -it camera_processor_ws bash -c 'source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 topic echo /camera/image_raw'

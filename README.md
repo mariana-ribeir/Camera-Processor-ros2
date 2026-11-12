@@ -107,6 +107,8 @@ The system can be started using a ROS2 launch file that initializes all nodes:
 - ai_pose
 - heuristic_pose
 - pose_processor
+- empatica_gmm_monitor
+- polarh10_monitor
 - web_video_server
 
 ```bash
@@ -147,19 +149,81 @@ Every S3 poll also publishes a `camera_interfaces/msg/EmpaticaQueryStatus` on `/
 
 The node is included in both `launch.py` and `launch_nogui.py` and does not subscribe to the camera pipeline.
 
+## Polar H10 Fatigue Monitor
+
+For concise PC and Jetson setup steps, see [POLAR_QUICKSTART.md](./docs/POLAR_QUICKSTART.md).
+
+The `polarh10_monitor` node connects to a Polar H10 chest strap over Bluetooth (BLE), receives HR/R-R and ECG (130 Hz via the Polar PMD service), reproduces the training preprocessing in 60-second windows, and estimates fatigue with 1-4 ONNX models. It is included in `launch.py`, `launch_nogui.py` and `launch_gmm.py`.
+
+The node supports simultaneous Android sessions and up to two concurrent Polar BLE bridge connections. Each identified connection sends the worker name and Polar BLE ID; buffers, inference history, logs and baselines are separated by that pair. The app asks the user to select a sensor if it finds multiple H10s nearby.
+
+**Baseline:** all input modes use the same persistent `/workspaces/ros2_ws/.cache/polar_baselines` directory by default (override with `POLAR_BASELINE_DIR`). Identified bridge and Android sessions load their file by participant name and readable Polar ID. Older bridge clients without identity fields continue using the configured legacy subject. If a baseline file is missing, the first **15 valid 60 s windows** build it; no predictions are published during calibration. Set `recalibrate:=true` to replace a baseline; it is only overwritten after 15 new windows complete.
+
+**Raw data CSV:** each accepted connection writes a separate timestamped file under `/workspaces/ros2_ws/.cache/polar_logs` by default. Identified bridge and Android file names and rows include the participant name and Polar ID; the CSV columns are `UNIX Timestamp,ECG,HR,RR,Marker,Participant Name,Polar Device ID`. Older bridge clients without identity fields use the configured legacy subject. ECG is in mV, HR in bpm and RR in ms. HR and R-R values are associated with the nearest ECG sample; values without a nearby ECG sample are retained in their own timestamped row. The file is flushed during the session and closed on disconnect. On Windows and Jetson, the bind-mounted files appear under `<project folder>\.cache\polar_logs` and `~/camera-processor-ros2/.cache/polar_logs`, respectively. Override the container directory with `POLAR_LOG_DIR`.
+
+**ROS topic recording:** set `POLAR_ROSBAG_ENABLED=true` in the root `.env` before starting the system to automatically record all `/polar/fatigue/*` inference topics together in a timestamped rosbag2 under `.cache/rosbags`. Set it to `false` (the default) to disable recording. The rosbag starts and stops with the selected ROS launch; raw HR, RR and ECG continue to be saved separately as session CSV files.
+
+**How to run on Windows with Docker Desktop:** the ROS node, calibration, ONNX models and ROS publishers run inside Docker. Since Docker Desktop does not directly expose Windows' built-in Bluetooth adapter to Linux containers, the BLE bridge runs on Windows and opens one TCP connection per Polar (up to two simultaneously). It forwards HR/R-R, ECG, participant name and BLE ID over the localhost TCP port; inference and ROS publishing remain in Docker.
+
+1. Rebuild and start the container, then launch the GMM pipeline (which also starts `polarh10_monitor`):
+
+   ```powershell
+   docker-compose up -d --build
+   docker exec camera_processor_ws bash -lc "source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 launch camera_processor launch_gmm.py"
+   ```
+
+2. In a separate Windows PowerShell terminal, create a Python environment for this project, install its BLE dependency from the project requirements file, and start the bridge from the repository root:
+
+   ```powershell
+   cd "C:\Users\Carlo\Desktop\Camera-Processor-ros2"
+   py -3.10 -m venv .venv-polar
+   .\.venv-polar\Scripts\python.exe -m pip install -r .\requirements-ble.txt
+   .\.venv-polar\Scripts\python.exe .\scripts\polar_h10_tcp_bridge.py --device both
+   ```
+
+   Leave both the Docker launch and bridge running. The bridge reconnects if the ROS node restarts. Stop it with Ctrl+C. The TCP port is published only on `127.0.0.1:8765`; it is not exposed to the LAN.
+
+The bridge needs Python 3.9 or newer and Bleak 1.x for Windows' pre-connection pairing support. The Python launcher command above uses Python 3.10; if that version is not installed, install Python 3.10 or newer first.
+
+**Input mode and bridge selection:** set `POLAR_INPUT_MODE=android` to receive phone streams, or `POLAR_INPUT_MODE=bridge` to receive the Python BLE bridge. The phone mode supports simultaneous app connections. In bridge mode, `POLAR_DEVICE=polar1`, `polar2` or `both` selects one or both configured sensors; `POLAR1_ADDRESS` and `POLAR2_ADDRESS` hold their BLE addresses, with optional `POLAR1_PAIR`/`POLAR2_PAIR` pairing flags. Bridge identities are fixed as `POLAR1` and `POLAR2`; the same labels are used for their baseline and log filenames. `POLAR_DEVICE` is ignored in phone mode. You can override the selection for one run with `--device polar1`, `--device polar2` or `--device both`.
+
+**Parameters:**
+
+| Parameter | Default | Description |
+|---|---|---|
+| `subject` | `POLAR1` | Fallback identity for older bridge clients without identity fields |
+| `recalibrate` | `false` | Discard the existing baseline and record 15 new windows |
+| `models` | `[logistic_regression, random_forest, svm, xgboost]` | Subset of 1-4 models to run |
+| `models_root` | `<package_share>/models/polar` | Folder with the `LOGISTIC_REGRESSION`, `RANDOM_FOREST`, `SVM`, `XGBOOST` model dirs |
+| `baseline_dir` | `/workspaces/ros2_ws/.cache/polar_baselines` in Docker | Single persistent folder where all bridge and Android baseline CSVs are read/written |
+| `polar_log_dir` | `/workspaces/ros2_ws/.cache/polar_logs` in Docker | Folder for raw ECG/HR/R-R CSV files, one per connection |
+| `tcp_host` | `0.0.0.0` | Address on which the ROS node accepts bridge and Android TCP sessions |
+| `tcp_port` | `8765` | TCP port for BLE bridge and Android sessions |
+
+**Model selection:** set `POLAR_MODELS` in the root `.env` file as a comma-separated list. For example, `POLAR_MODELS=svm,xgboost` runs only those two models; `POLAR_MODELS=random_forest` runs only Random Forest. Valid names are `logistic_regression`, `random_forest`, `svm` and `xgboost`. Restart the system (`.\run_system.ps1 -GMM`) for the node to load the selection. Models cannot be changed while the node is running.
+
+**Topics:** each model publishes `camera_interfaces/msg/FatiguePrediction` on its own topic: `/polar/fatigue/logistic_regression`, `/polar/fatigue/random_forest`, `/polar/fatigue/svm` and `/polar/fatigue/xgboost`. The message carries the session subject, participant name, Polar ID, model name, predicted label (`Low`, `Medium`, `High`), the three class probabilities, the number of imputed features and the temporal history size. Rebuild the ROS workspace and Docker image after changing the message definition.
+
+```bash
+ros2 topic echo /polar/fatigue/xgboost
+```
+
+**Requirements:** the H10 must be worn (skin contact) and not connected to another app. Install `bleak` in the Windows Python environment and run the bridge as described above. Docker runs Polar inference from ONNX models and imputer medians stored in their metadata; the `.joblib` training artifacts are not loaded at runtime. These outputs are model estimates, not a medical evaluation.
+
 ## Architecture Summary
-                                        +--------------------+
-                                        |   Camera Node      |
-                                        | (camera_simulator) |
-                                        +--------------------+
-                                                |
-                                                |  /camera/image_raw
-                                                |
+```text
+                                        +--------------------+        +---------------------------+   +---------------------------+
+                                        |   Camera Node      |        | Empatica GMM Monitor      |   | Polar H10 Monitor         |
+                                        | (camera_simulator) |        | (empatica_gmm_monitor)    |   | (polarh10_monitor)        |
+                                        +--------------------+        +---------------------------+   +---------------------------+
+                                                |                     | /empatica/gmm/predictions |   | /polar/fatigue/<model>    |
+                                                |  /camera/image_raw  | /empatica/gmm/status      |   |                           |
+                                                |                     +---------------------------+   +---------------------------+
           +---------------------------+---------------------+
-          |                           |                     |                      
-          v                           v                     |                      
+          |                           |                     |
+          v                           v                     |
 +---------------------------+ +------------------+          |
-| Color Processor           | | Person Processor |          |           
+| Color Processor           | | Person Processor |          |
 | (color_processor)         | | (person_processor)|         |
 +---------------------------+ +------------------+          |
 | /color/frame_processed    | | person/detected  |          |
@@ -167,7 +231,7 @@ The node is included in both `launch.py` and `launch_nogui.py` and does not subs
 +---------------------------+ +------------------+          |
                                     |                       |
                                     |                       |
-                                    v                       v            
+                                    v                       v
                           +---------------------------------+-------------------+
                           |                                                     |
                           v                                                     v
@@ -188,6 +252,7 @@ The node is included in both `launch.py` and `launch_nogui.py` and does not subs
                                             +------------------+
                                             | pose/detected    |
                                             +------------------+
+```
 
 **Data Flow:**
 - `camera_simulator` publishes images to `/camera/image_raw`.
@@ -215,6 +280,14 @@ The node is included in both `launch.py` and `launch_nogui.py` and does not subs
   - Combines the results
   - Publishes the final output to `pose/detected`
 
+- `empatica_gmm_monitor` polls the configured S3 bucket for the participant's
+  biomarker CSVs, preprocesses new rows, runs the scaler/PCA/GMM pipeline, and
+  publishes predictions and query status. It does not connect directly to the
+  watch.
+- `polarh10_monitor` receives HR/R-R and ECG from the BLE bridge over TCP,
+  records each connection to a CSV, processes signal windows, and publishes
+  fatigue predictions. It accepts concurrent identified connections from
+  Android phones and up to two Polar BLE bridge profiles.
 
 | Package                     | Node Name         | Purpose                                                               |
 | --------------------------- | ----------------- | --------------------------------------------------------------------- |
@@ -224,6 +297,8 @@ The node is included in both `launch.py` and `launch_nogui.py` and does not subs
 |                             | `heuristic_pose`  | Processes frames to detect poses using heuristics and publish results |
 |                             | `ai_pose`         | Processes frames to detect poses using AI and publish results         |
 |                             | `pose_processor`  | Combines AI and heuristic detections to publish final results         |
+|                             | `empatica_gmm_monitor` | Reads Empatica biomarker CSVs from S3 and publishes GMM predictions |
+|                             | `polarh10_monitor` | Receives Polar data over TCP, logs CSV, and publishes fatigue predictions |
 
 ### Relationship between Pose Nodes
 

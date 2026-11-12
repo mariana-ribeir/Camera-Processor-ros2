@@ -4,17 +4,29 @@ import os
 
 package_name = 'camera_processor'
 
+
+def package_data_files(source_dir, install_base):
+    """Collect files recursively, preserving the directory structure."""
+    data = []
+    for root, _, files in os.walk(source_dir):
+        if not files:
+            continue
+        relative = os.path.relpath(root, source_dir)
+        destination = install_base if relative == '.' else os.path.join(install_base, relative)
+        data.append((destination, [os.path.join(root, f) for f in files]))
+    return data
+
+
 # Find all files in models and launch folders
-models_files = glob.glob(os.path.join('models', '*'))
 launch_files = [f for f in glob.glob(os.path.join('launch', '*')) if not os.path.basename(f).startswith('__')]
 
 # Build the data_files list
 data_files = [
     ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
     ('share/' + package_name, ['package.xml']),
-    ('share/' + package_name + '/models', models_files),
     ('share/' + package_name + '/launch', launch_files)
 ]
+data_files += package_data_files('models', 'share/' + package_name + '/models')
 
 
 setup(
@@ -29,7 +41,10 @@ setup(
         'boto3',
         'numpy',
         'pandas',
-        'scikit-learn',
+        'scikit-learn==1.6.1',
+        'scipy',
+        'antropy',
+        'onnxruntime',
     ],
     zip_safe=True,
     maintainer='root',
@@ -49,6 +64,7 @@ setup(
             'ai_pose = camera_processor.nodes.ai_pose:main',
             'pose_processor = camera_processor.nodes.pose_processor:main',
             'empatica_gmm_monitor = camera_processor.nodes.empatica_gmm_node:main',
+            'polarh10_monitor = camera_processor.nodes.polarh10_monitor_node:main',
         ],
     },
 )

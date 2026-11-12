@@ -9,6 +9,7 @@ RUN apt update && apt install -y \
     python3-setuptools \
     git wget curl \
     ros-jazzy-vision-opencv \
+    ros-jazzy-rosbag2 \
     ros-jazzy-rqt-image-view \
     build-essential \
     libboost-all-dev \
@@ -53,7 +54,18 @@ RUN pip3 install --break-system-packages \
     "opencv-python==4.10.0.84" \
     --extra-index-url https://download.pytorch.org/whl/cpu
 
-RUN pip3 install --break-system-packages --default-timeout=300 --retries=5 boto3 pandas
+# Match the scikit-learn version used to serialize the GMM bundle.
+# Polar inference uses ONNX and metadata, not its serialized training pipelines.
+RUN pip3 install --break-system-packages --default-timeout=300 --retries=5 \
+    "numpy<2.0.0" "scikit-learn==1.6.1"
+
+RUN pip3 install --break-system-packages --default-timeout=300 --retries=5 \
+    boto3 "pandas<3.0.0" "numpy<2.0.0"
+
+# --- 2b. INFERENCIA DE FATIGA POLAR H10 ---
+# El BLE se lee en Windows y se reenvia por TCP al nodo ROS dentro de Docker.
+RUN pip3 install --break-system-packages --default-timeout=300 --retries=5 \
+    antropy
 
 # --- 3. FIX CV_BRIDGE ---
 WORKDIR /opt/cv_bridge_build

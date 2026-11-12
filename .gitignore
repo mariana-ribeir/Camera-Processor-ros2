@@ -135,7 +135,9 @@ celerybeat.pid
 
 # Environments
 .env
+JETSON_REMOTE_GUIDE.md
 .venv
+.venv-polar/
 env/
 venv/
 ENV/

@@ -1,6 +1,9 @@
 services:
   ros2_camera_processor:
     image: camera-processor:jazzy
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: camera_processor_ws
     volumes:
       - .:/workspaces/ros2_ws
@@ -17,6 +20,11 @@ services:
       PARTICIPANT_ID: ${PARTICIPANT_ID:-1-1-0001}
       GMM_MODEL_PATH: ${GMM_MODEL_PATH:-/workspaces/ros2_ws/src/camera_processor/models/gmm_model.pkl}
       EMPATICA_STATE_FILE: ${EMPATICA_STATE_FILE:-/workspaces/ros2_ws/.cache/empatica_gmm_state.json}
+      POLAR_BASELINE_DIR: ${POLAR_BASELINE_DIR:-/workspaces/ros2_ws/.cache/polar_baselines}
+      POLAR_LOG_DIR: ${POLAR_LOG_DIR:-/workspaces/ros2_ws/.cache/polar_logs}
+      POLAR_MODELS: ${POLAR_MODELS:-logistic_regression,random_forest,svm,xgboost}
+      POLAR_INPUT_MODE: ${POLAR_INPUT_MODE:-bridge}
+      POLAR_ROSBAG_ENABLED: ${POLAR_ROSBAG_ENABLED:-false}
     # devices:
     #   - "/dev/video0:/dev/video0"
     #group_add:
@@ -24,6 +32,8 @@ services:
     ports:
       - "8080:8080"
       - "10000:10000"
+      - "8765:8765"
+      - "8766:8766/udp"
     stdin_open: true
     tty: true
     command: /bin/bash
