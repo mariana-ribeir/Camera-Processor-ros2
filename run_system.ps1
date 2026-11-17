@@ -109,7 +109,12 @@ if ($GMM) {
 
 # Passo 2: Construir e executar o contenedor com Docker Compose
 Write-Host "Executando contenedor com Docker Compose..."
-docker-compose down  # Asegurar que no haya contenedores previos corriendo
+$stopScript = Join-Path $PSScriptRoot "stop_system.ps1"
+$stopResult = & $stopScript -KeepContainer
+if ($stopResult -ne $true) {
+    Write-Host "Erro ao parar o sistema anterior."
+    exit 1
+}
 docker-compose up -d
 
 # Esperar um pouco para que o contentor inicie
@@ -138,7 +143,11 @@ docker exec camera_processor_ws pkill -f "ros2 run" 2>$null
 
 # Passo 3: Lançar o sistema usando launch
 Write-Host "Lançando o sistema com launch..."
-docker exec -d camera_processor_ws bash -lc "source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && ros2 launch camera_processor $launchFile"
+docker exec -d camera_processor_ws bash -lc "source /opt/ros/jazzy/setup.bash && source /workspaces/ros2_ws/install/setup.bash && echo `$`$ > /tmp/camera_processor_launch.pid && exec ros2 launch camera_processor $launchFile"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Erro ao iniciar o launch ROS2."
+    exit 1
+}
 
 $polarInputMode = $env:POLAR_INPUT_MODE
 if ([string]::IsNullOrWhiteSpace($polarInputMode)) {

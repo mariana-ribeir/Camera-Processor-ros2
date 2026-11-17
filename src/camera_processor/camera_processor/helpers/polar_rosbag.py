@@ -3,7 +3,7 @@ from datetime import datetime
 
 
 POLAR_ROSBAG_DIR = "/workspaces/ros2_ws/.cache/rosbags"
-POLAR_TOPIC_REGEX = r"^/polar/fatigue/.*$"
+POLAR_TOPIC_REGEX = r"^/(?:polar/fatigue/.*|empatica/gmm/(?:predictions|status))$"
 
 
 def polar_rosbag_command(enabled=None):

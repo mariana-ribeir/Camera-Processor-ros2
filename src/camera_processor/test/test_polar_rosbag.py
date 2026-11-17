@@ -29,3 +29,21 @@ def test_polar_rosbag_command_records_polar_topics(monkeypatch, value):
     assert command[5:] == ["--regex", POLAR_TOPIC_REGEX]
     assert command[4].startswith(f"{POLAR_ROSBAG_DIR}/polar_")
     assert re.fullmatch(r".*/polar_\d{8}_\d{6}", command[4])
+
+
+@pytest.mark.parametrize(
+    "topic",
+    [
+        "/polar/fatigue/xgboost",
+        "/polar/fatigue/logistic_regression",
+        "/empatica/gmm/predictions",
+        "/empatica/gmm/status",
+    ],
+)
+def test_polar_rosbag_regex_includes_polar_and_empatica_topics(topic):
+    assert re.fullmatch(POLAR_TOPIC_REGEX, topic)
+
+
+@pytest.mark.parametrize("topic", ["/camera/image_raw", "/empatica/raw"])
+def test_polar_rosbag_regex_excludes_unrequested_topics(topic):
+    assert not re.fullmatch(POLAR_TOPIC_REGEX, topic)

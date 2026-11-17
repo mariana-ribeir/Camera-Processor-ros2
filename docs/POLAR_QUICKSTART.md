@@ -34,7 +34,9 @@ POLAR_ROSBAG_ENABLED=false
 
 `POLAR_INPUT_MODE` tiene dos opciones: `android` para teléfonos o `bridge` para el puente BLE del PC/Jetson. En modo teléfono, la app envía el nombre de la persona y el ID del H10; `POLAR_DEVICE` y las direcciones BLE no se usan. En modo bridge, las identidades son fijas (`POLAR1`/`POLAR2`) y `POLAR_DEVICE` elige uno o ambos sensores. Recrea el contenedor despues de cambiar el modo.
 
-Para grabar automáticamente las inferencias ROS 2 del Polar en una bolsa rosbag2, cambia `POLAR_ROSBAG_ENABLED=true` antes de iniciar. Los tópicos `/polar/fatigue/*` se guardarán juntos en una bolsa con nombre y hora bajo `.cache/rosbags`; cada tópico se conserva como flujo independiente. La opción predeterminada es `false`. La grabación empieza con el launch y se cierra al detenerlo.
+Para grabar automáticamente las inferencias ROS 2 de Polar y Empatica, cambia `POLAR_ROSBAG_ENABLED=true` antes de iniciar. Los tópicos `/polar/fatigue/*`, `/empatica/gmm/predictions` y `/empatica/gmm/status` se guardarán juntos en **un único archivo MCAP por sesión**, bajo `.cache/rosbags`; cada tópico se conserva como flujo independiente. La grabación empieza con el launch. Para detener el sistema y cerrar la bolsa correctamente en Windows, ejecuta `.\stop_system.ps1`; no uses `docker compose down` directamente, porque interrumpiría el launch antes de finalizar el archivo. La opción predeterminada es `false`.
+
+Los archivos `.mcap` son binarios, no texto para VS Code. Para inspeccionarlos visualmente, abre el archivo en Foxglove Studio, una aplicación para explorar mensajes y gráficas de ROS. También puedes consultar una bolsa finalizada desde el contenedor con `ros2 bag info <ruta-de-la-bolsa>`.
 
 1. Instala la APK EAS `preview` que corresponda a la version del codigo. El enlace anterior es una compilacion previa y no incluye los cambios de captura persistente/identidad multiusuario; genera una nueva compilacion cuando decidas gastar un build.
 2. En Windows, desde la raiz de este repositorio, inicia ROS 2 y el nodo Polar:
