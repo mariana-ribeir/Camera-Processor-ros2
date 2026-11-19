@@ -3,7 +3,7 @@ import numpy as np
 from collections import deque
 
 # Detection/tracking configuration
-DEFAULT_CONF = 0.05 # confianza mínima detección YOLO
+DEFAULT_CONF = 0.70 # confianza mínima detección YOLO
 
 #COLOR_HISTORY_LEN = 30 # Aumentado: más inercia para aguantar giros de la persona
 #TORSO_CENTER_FRAC = 0.70 # fracción central del torso a analizar (evita brazos/fondo)

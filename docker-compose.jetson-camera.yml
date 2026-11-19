@@ -1,0 +1,6 @@
+services:
+  ros2_camera_processor:
+    devices:
+      - "${CAMERA_DEVICE:-/dev/video0}:${CAMERA_DEVICE:-/dev/video0}"
+    group_add:
+      - video

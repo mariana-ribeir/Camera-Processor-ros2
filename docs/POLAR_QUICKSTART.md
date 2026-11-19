@@ -30,11 +30,12 @@ En el `.env` de la raiz, selecciona el origen antes de iniciar Docker:
 ```env
 POLAR_INPUT_MODE=android
 POLAR_ROSBAG_ENABLED=false
+POLAR_ROSBAG_CAMERA_IMAGE_RAW_ENABLED=false
 ```
 
 `POLAR_INPUT_MODE` tiene dos opciones: `android` para teléfonos o `bridge` para el puente BLE del PC/Jetson. En modo teléfono, la app envía el nombre de la persona y el ID del H10; `POLAR_DEVICE` y las direcciones BLE no se usan. En modo bridge, las identidades son fijas (`POLAR1`/`POLAR2`) y `POLAR_DEVICE` elige uno o ambos sensores. Recrea el contenedor despues de cambiar el modo.
 
-Para grabar automáticamente las inferencias ROS 2 de Polar y Empatica, cambia `POLAR_ROSBAG_ENABLED=true` antes de iniciar. Los tópicos `/polar/fatigue/*`, `/empatica/gmm/predictions` y `/empatica/gmm/status` se guardarán juntos en **un único archivo MCAP por sesión**, bajo `.cache/rosbags`; cada tópico se conserva como flujo independiente. La grabación empieza con el launch. Para detener el sistema y cerrar la bolsa correctamente en Windows, ejecuta `.\stop_system.ps1`; no uses `docker compose down` directamente, porque interrumpiría el launch antes de finalizar el archivo. La opción predeterminada es `false`.
+`POLAR_ROSBAG_ENABLED` controla la grabación completa de la bolsa. Si está activo, `POLAR_ROSBAG_CAMERA_IMAGE_RAW_ENABLED=true` añade `/camera/image_raw`; en `false` no guarda ese tópico. Si no defines esta variable, se toma como `false`. Las imágenes procesadas no se incluyen. Se conservan los tópicos `/polar/fatigue/*`, `/empatica/gmm/predictions`, `/empatica/gmm/status`, `/person/detected`, `/person/detections`, `/pose/ia/detected`, `/pose/heuristic/detected` y `/pose/detected`. El MCAP usa compresión Zstd rápida y sin pérdida. Usa el launch completo (`launch.py` o `launch_nogui.py`) para que se publiquen también persona y pose; `launch_gmm.py` solo inicia Empatica y Polar. Solo se graban los tópicos que estén publicando mensajes durante la sesión. La grabación empieza con el launch. Para detener el sistema y cerrar la bolsa correctamente en Windows, ejecuta `.\stop_system.ps1`; no uses `docker compose down` directamente, porque interrumpiría el launch antes de finalizar el archivo. La opción predeterminada de `POLAR_ROSBAG_ENABLED` es `false`.
 
 Los archivos `.mcap` son binarios, no texto para VS Code. Para inspeccionarlos visualmente, abre el archivo en Foxglove Studio, una aplicación para explorar mensajes y gráficas de ROS. También puedes consultar una bolsa finalizada desde el contenedor con `ros2 bag info <ruta-de-la-bolsa>`.
 

@@ -12,6 +12,8 @@ services:
       DISPLAY: host.docker.internal:0
       QT_X11_NO_MITSHM: "1"
       OPENCV_VIDEOIO_PRIORITY_GSTREAMER: "0"
+      CAMERA_SOURCE: ${CAMERA_SOURCE:-video}
+      CAMERA_DEVICE: ${CAMERA_DEVICE:-/dev/video0}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
@@ -25,6 +27,7 @@ services:
       POLAR_MODELS: ${POLAR_MODELS:-logistic_regression,random_forest,svm,xgboost}
       POLAR_INPUT_MODE: ${POLAR_INPUT_MODE:-bridge}
       POLAR_ROSBAG_ENABLED: ${POLAR_ROSBAG_ENABLED:-false}
+      POLAR_ROSBAG_CAMERA_IMAGE_RAW_ENABLED: ${POLAR_ROSBAG_CAMERA_IMAGE_RAW_ENABLED:-false}
     # devices:
     #   - "/dev/video0:/dev/video0"
     #group_add:

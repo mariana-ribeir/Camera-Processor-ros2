@@ -33,7 +33,7 @@ def generate_launch_description():
             name='person_processor',
             parameters=[{
                 'show_gui': False,
-                'rotate_video': True
+                'rotate_video': False
             }],
             output='screen'
         ),
@@ -44,7 +44,7 @@ def generate_launch_description():
             name='ai_pose',
             parameters=[{
                 'show_gui': False,
-                'rotate_video': True
+                'rotate_video': False
             }],
             output='screen'
         ),
@@ -55,7 +55,7 @@ def generate_launch_description():
             name='heuristic_pose',
             parameters=[{
                 'show_gui': False,
-                'rotate_video': True
+                'rotate_video': False
             }],
             output='screen'
         ),

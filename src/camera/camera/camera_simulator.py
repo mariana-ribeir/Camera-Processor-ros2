@@ -7,7 +7,7 @@ import cv2
 from ament_index_python.packages import get_package_share_directory
 
 """
-ROS2 Node that simulates a camera using a video file.
+ROS 2 node that publishes frames from a video file or a live camera.
 
 Publishes:
     /camera/image_raw (sensor_msgs/Image): The raw video stream input.
@@ -18,36 +18,70 @@ Attributes:
     cap (cv2.VideoCapture): OpenCV video capture object
     bridge (CvBridge): Converter from OpenCV images to ROS2 Image messages
 """
+
+
+def resolve_capture_source(camera_source, video_path, camera_device):
+    source = str(camera_source).strip().lower()
+    if source == 'video':
+        return source, video_path
+    if source == 'camera':
+        return source, camera_device
+    raise ValueError(
+        'CAMERA_SOURCE debe ser "video" o "camera"; '
+        f'se recibio: {camera_source!r}'
+    )
+
+
 class CameraSimulator(Node):
     def __init__(self, video_path, rotate_video=False):
         super().__init__('camera_simulator')
         self.get_logger().info("Node 'camera_simulator' started!")
         
-        # Declarar parámetros para que el Launch file pueda controlarlos
         self.declare_parameter('video_path', video_path)
         self.declare_parameter('rotate_video', rotate_video)
+        self.declare_parameter(
+            'camera_source', os.getenv('CAMERA_SOURCE', 'video')
+        )
+        self.declare_parameter(
+            'camera_device', os.getenv('CAMERA_DEVICE', '/dev/video0')
+        )
         
-        # Obtener los valores (prioriza lo que diga el launch file)
         self.video_path = self.get_parameter('video_path').value
         self.rotate_video = self.get_parameter('rotate_video').value
+        requested_source = self.get_parameter('camera_source').value
+        self.camera_device = self.get_parameter('camera_device').value
+        self.camera_source, capture_source = resolve_capture_source(
+            requested_source, self.video_path, self.camera_device
+        )
 
         self.publisher_ = self.create_publisher(Image, '/camera/image_raw', 1)
-        # Seteado a 0.25 (4 FPS) para mayor fluidez. Si el Jetson laguea, subir a 0.3 o 0.4
+        # Publica a un maximo de 4 FPS.
         self.timer = self.create_timer(0.25, self.timer_callback)
         self.bridge = CvBridge()
 
-        # Open video (0 = webcam, ou "video.mp4")
-        #self.cap = cv2.VideoCapture(0)
-        self.cap = cv2.VideoCapture(self.video_path)
+        if self.camera_source == 'camera':
+            self.cap = cv2.VideoCapture(capture_source, cv2.CAP_V4L2)
+            self.get_logger().info(
+                f'Abriendo camara en {capture_source}'
+            )
+        else:
+            self.cap = cv2.VideoCapture(capture_source)
+            self.get_logger().info(
+                f'Abriendo video en {capture_source}'
+            )
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
         if not self.cap.isOpened():
-            self.get_logger().error(f"Error open the video(simulation of camera): {self.video_path}")
+            self.cap.release()
+            raise RuntimeError(
+                f'No se pudo abrir {self.camera_source}: {capture_source}'
+            )
 
     def timer_callback(self):
         ret, frame = self.cap.read()
         if not ret:
-            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            if self.camera_source == 'video':
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             return
 
         # Optimization: Resize frame to 640x480 to reduce load on AI nodes (INTER_AREA is better for downscaling)
@@ -78,12 +112,16 @@ def main(args=None):
     rotate_video = False
 
     #Create the node
-    node = CameraSimulator(video, rotate_video=rotate_video)
-    #Run the node
-    rclpy.spin(node)
-    #Clean the node after the executation
-    node.destroy_node()
-    rclpy.shutdown()
+    node = None
+    try:
+        node = CameraSimulator(video, rotate_video=rotate_video)
+        rclpy.spin(node)
+    finally:
+        if node is not None:
+            node.cap.release()
+            node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
